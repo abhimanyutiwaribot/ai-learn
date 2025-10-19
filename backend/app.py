@@ -18,6 +18,7 @@ CORS(app)
 # Configure Gemini API
 GEMINI_API_KEY = os.getenv('GOOGLE_AI_API_KEY')
 if GEMINI_API_KEY:
+    print(GEMINI_API_KEY)
     genai.configure(api_key=GEMINI_API_KEY)
     GEMINI_ENABLED = True
 else:
@@ -159,7 +160,7 @@ def hybrid_prompt():
                     "error": "Cloud AI not available. Prompt too long for on-device processing."
                 }), 400
             
-            model = genai.GenerativeModel('gemini-pro')
+            model = genai.GenerativeModel('gemini-2.0-flash-exp:free')
             
             if accessibility_mode:
                 prompt = build_accessibility_prompt(prompt, accessibility_mode)
