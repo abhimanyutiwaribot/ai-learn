@@ -1,0 +1,82 @@
+/* Accessibility-specific styles */
+
+/* Dyslexia Mode */
+.accessibility-dyslexia {
+    font-family: 'OpenDyslexic', 'Comic Sans MS', sans-serif !important;
+    line-height: 2.0 !important;
+    letter-spacing: 0.12em !important;
+}
+
+.accessibility-dyslexia p {
+    margin-bottom: 1.5em !important;
+}
+
+/* ADHD Mode */
+.accessibility-adhd {
+    max-width: 600px;
+}
+
+.accessibility-adhd p {
+    margin-bottom: 1em;
+}
+
+/* Visual Impairment Mode */
+.accessibility-visual_impairment {
+    font-size: 18px !important;
+    line-height: 2.2 !important;
+    color: #000 !important;
+}
+
+/* Non-Native Speaker Mode */
+.accessibility-non_native {
+    font-size: 16px;
+    line-height: 1.9;
+}
+
+/* Focus Mode */
+.focus-mode-hidden {
+    display: none !important;
+}
+
+/* High Contrast */
+body.high-contrast-mode {
+    filter: contrast(1.5) !important;
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+/* Dyslexia Font */
+@font-face {
+    font-family: 'OpenDyslexic';
+    src: url('https://cdn.jsdelivr.net/npm/open-dyslexic@1.0.3/fonts/OpenDyslexic-Regular.woff2') format('woff2');
+    font-weight: normal;
+    font-style: normal;
+}
+
+/* WCAG Focus Indicators */
+button:focus,
+input:focus,
+select:focus,
+textarea:focus {
+    outline: 3px solid #667eea !important;
+    outline-offset: 2px !important;
+}
+
+/* Screen Reader Only */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
