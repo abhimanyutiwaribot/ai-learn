@@ -11,9 +11,13 @@
     margin-bottom: 1.5em !important;
 }
 
-/* ADHD Mode */
+/* ADHD Mode (UPDATED for stricter focus) */
 .accessibility-adhd {
-    max-width: 600px;
+    max-width: 800px; 
+    margin: 0 auto; 
+    padding: 15px; 
+    border: 1px solid #764ba2; 
+    background-color: #f7f7f7; 
 }
 
 .accessibility-adhd p {
@@ -33,9 +37,98 @@
     line-height: 1.9;
 }
 
+/* (In chromeai-plus/extension/styles/accessibility.css - Add/update Focus Mode section) */
+
+/* Focus Mode Base Style - Applied to the <body> */
+/* NOTE: The 'chromeai-focus-mode' class is being deprecated, but the styling is being repurposed
+   for the strict focus behavior requested for ADHD/Focus, applied through JavaScript. 
+   We will update this section to use 'display: none'. */
+body.chromeai-focus-mode, /* Deprecated: Use this style for strict focus */
+body.accessibility-adhd { /* Apply strict rules also when ADHD profile is active */
+    background-color: #f0f0f0 !important; 
+    /* Remove filter: contrast(0.8) as we are switching to strict hide/show */
+}
+
+/* STRICT FOCUS RULE: Hide EVERYTHING by default */
+body.chromeai-focus-mode *,
+body.accessibility-adhd * {
+    display: none !important; /* STRICT HIDE: Makes everything disappear */
+}
+
+/* STRICT FOCUS WHITELIST: Show ONLY main content containers and their direct children (text/headings) */
+body.chromeai-focus-mode main,
+body.chromeai-focus-mode article,
+body.chromeai-focus-mode [role="main"],
+body.chromeai-focus-mode #content,
+body.chromeai-focus-mode .content,
+body.chromeai-focus-mode .post-content,
+body.accessibility-adhd main,
+body.accessibility-adhd article,
+body.accessibility-adhd [role="main"],
+body.accessibility-adhd #content,
+body.accessibility-adhd .content,
+body.accessibility-adhd .post-content,
+body.chromeai-focus-mode .chromeai-overlay, 
+body.chromeai-focus-mode .chromeai-overlay *,
+body.accessibility-adhd .chromeai-overlay, 
+body.accessibility-adhd .chromeai-overlay * {
+    display: block !important; /* Show the container itself */
+}
+
+/* STRICT FOCUS CHILD WHITELIST: Ensure all content inside the main container is visible */
+body.chromeai-focus-mode main *,
+body.chromeai-focus-mode article *,
+body.chromeai-focus-mode [role="main"] *,
+body.chromeai-focus-mode #content *,
+body.chromeai-focus-mode .content *,
+body.chromeai-focus-mode .post-content *,
+body.accessibility-adhd main *,
+body.accessibility-adhd article *,
+body.accessibility-adhd [role="main"] *,
+body.accessibility-adhd #content *,
+body.accessibility-adhd .content *,
+body.accessibility-adhd .post-content * {
+    display: block !important; /* Show nested content */
+    opacity: 1 !important; /* Override any lingering opacity from non-focus modes */
+}
+/* END OF STRICT FOCUS IMPLEMENTATION */
+
+
+/* Scroll the main content to the center of the viewport */
+body.chromeai-focus-mode main {
+    position: relative;
+    margin: 20px auto;
+    max-width: 800px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    background: white;
+}
+
 /* Focus Mode */
 .focus-mode-hidden {
     display: none !important;
+} 
+/* (In chromeai-plus/extension/styles/accessibility.css, ensure these exist) */
+
+/* Global focus mode class for the body */
+.focus-mode-active {
+    /* Example: Darken the body and show only main content */
+    background-color: #f0f0f0 !important;
+}
+
+/* Hide sidebars, ads, and footers when focus mode is active */
+.focus-mode-active :not(main):not(article):not(.focus-mode-whitelist) {
+    /* Hide all non-essential elements */
+    opacity: 0.1 !important;
+    transition: opacity 0.5s;
+}
+
+/* Ensure only essential elements are highly visible */
+.focus-mode-active main,
+.focus-mode-active article {
+    opacity: 1 !important;
+    background: white !important;
+    padding: 20px;
+    border-radius: 10px;
 }
 
 /* High Contrast */

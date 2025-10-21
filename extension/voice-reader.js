@@ -11,7 +11,7 @@ const BACKEND_URL = 'http://localhost:5000';
 // ============================================
 // ADVANCED VOICE READER - MULTI-FORMAT SUPPORT
 // ============================================
-
+(function() {
 class VoiceReader {
     constructor() {
         this.synth = window.speechSynthesis;
@@ -685,3 +685,4 @@ window.addEventListener('message', (event) => {
 });
 
 console.log('✅ Voice Reader loaded - Supports web pages, PDFs, Google Docs, and Office Online!');
+})();

@@ -1,1041 +1,1074 @@
-const BACKEND_URL = 'http://localhost:5000';
-let userId = null;
+(function() {
+
+// ChromeAI Plus Content Script - Complete Version
+console.log('🚀 ChromeAI Plus content script loaded');
+
 let currentProfile = null;
-let sessionStartTime = Date.now();
+let userId = null;
+let isProcessing = false;
 
-(async function init() {
-    const result = await chrome.storage.local.get(['userId', 'accessibilityProfile']);
-    userId = result.userId || 'anonymous';
-    currentProfile = result.accessibilityProfile || null;
-    
-    if (currentProfile) {
-        applyAccessibilitySettings();
-    }
-})();
+// The backend URL is assumed to be defined here or globally available
+const BACKEND_URL = 'http://localhost:5000'; 
 
-window.addEventListener('message', async (event) => {
-    if (event.source !== window) return;
+// ============================================
+// MESSAGE LISTENER (FIX: Added APPLY_PROFILE)
+// ============================================
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    console.log('📨 Content script received:', message.type);
     
-    const { type, data } = event.data;
-    
-    switch(type) {
-        case 'ACTIVATE_PROMPT':
-            showPromptInterface(data);
-            break;
-        case 'ACTIVATE_PROOFREAD':
-            activateProofreader(data);
-            break;
-        case 'ACTIVATE_SUMMARIZE':
-            showSummarizerOptions(data);
-            break;
-        case 'ACTIVATE_TRANSLATE':
-            showTranslatorInterface(data);
-            break;
-        case 'ACTIVATE_SCREENSHOT':
-            captureAndAnalyzeScreenshot(data);
-            break;
-        case 'ACTIVATE_OCR_TRANSLATE':
-            activateOCRTranslate(data);
-            break;
-        case 'ACTIVATE_SIMPLIFY':
-            simplifyPageContent(data);
-            break;
-        case 'ACTIVATE_VOICE_READER':
-            if (window.voiceReader) {
-                window.voiceReader.show();
-                window.voiceReader.startReading();
-            }
-            break;
-        case 'ACTIVATE_FOCUS_MODE':
-            enableFocusMode(data);
-            break;
+    if (message.type === 'PING') {
+        sendResponse({ status: 'ready' });
+        return false;
     }
+    
+    if (isProcessing && message.type.startsWith('ACTIVATE_')) {
+        console.log('⚠️ Already processing, please wait');
+        sendResponse({ status: 'busy' });
+        return false;
+    }
+    
+    if (message.type.startsWith('ACTIVATE_')) {
+        isProcessing = true;
+        handleActivation(message)
+            .then(() => {
+                isProcessing = false;
+                sendResponse({ status: 'activated' });
+            })
+            .catch(error => {
+                isProcessing = false;
+                console.error('❌ Activation error:', error);
+                showNotification('Error: ' + error.message, 'error');
+                sendResponse({ status: 'error', error: error.message });
+            });
+        return true; 
+    }
+    
+    if (message.type === 'APPLY_PROFILE') { // FIX: New listener for profile activation
+        applyProfileStyles(message.profile);
+        sendResponse({ status: 'profile_applied' });
+        return false;
+    }
+    
+    if (message.type === 'UPDATE_SETTINGS') {
+        applySettingsToPage(message.settings);
+        sendResponse({ status: 'settings_applied' });
+        return false;
+    }
+    
+    if (message.type === 'SHOW_INSIGHTS') {
+        displayInsightsOverlay(message.insights, message.sessionCount);
+        sendResponse({ status: 'insights_shown' });
+        return false;
+    }
+    
+    return false;
 });
 
-chrome.runtime.onMessage.addListener(async (message) => {
-    const { type, text } = message;
+async function handleActivation(message) {
+    const type = message.type.replace('ACTIVATE_', '');
+    const data = message.data || {};
+    
+    currentProfile = data.profile;
+    userId = data.userId;
+    
+    console.log(`✨ Activating ${type} with profile:`, currentProfile);
+    
+    removeExistingOverlays();
     
     switch(type) {
-        case 'TRANSLATE_SELECTION':
-            await handleContextMenuTranslation(text);
+        case 'PROMPT':
+            await showPromptInterface();
             break;
-        case 'PROOFREAD_SELECTION':
-            await handleSelectionProofreading(text);
+        case 'PROOFREAD': 
+            await activateProofreaderMode();
             break;
-        case 'SIMPLIFY_SELECTION':
-            await simplifySelectedText(text);
+        case 'SUMMARIZE': 
+            await showSummarizerOptions();
             break;
-        case 'READ_ALOUD_SELECTION':
-            if (window.voiceReader) {
-                window.voiceReader.show();
-                window.voiceReader.contentArray = [text];
-                window.voiceReader.currentIndex = 0;
-                window.voiceReader.readCurrent();
-            }
+        case 'TRANSLATE': 
+            await showTranslatorInterface();
             break;
-        case 'ACTIVATE_SCREENSHOT':
-            captureAndAnalyzeScreenshot({ profile: currentProfile });
+        case 'SCREENSHOT':
+            await captureAndAnalyzeScreenshot();
             break;
+        case 'OCR_TRANSLATE':
+            await activateOCRTranslate();
+            break;
+        case 'SIMPLIFY':
+            await activateSimplify();
+            break;
+        case 'VOICE_READER':
+            await activateVoiceReader();
+            break;
+        case 'FOCUS_MODE':
+            // Removed: No longer supported as a standalone feature
+            console.warn('Focus Mode is deprecated. Use ADHD profile instead.');
+            showNotification('Focus Mode is now integrated into the ADHD profile.', 'warning');
+            break;
+        default:
+            console.warn('⚠️ Unknown activation type:', type);
+            showNotification('Feature not implemented', 'warning');
     }
-});
-
-// ============================================
-// PROMPT API
-// ============================================
-
-function showPromptInterface(data) {
-    removeExistingOverlays();
-    
-    const overlay = document.createElement('div');
-    overlay.id = 'ai-prompt-overlay';
-    overlay.innerHTML = `
-        <div class="ai-prompt-container">
-            <div class="ai-prompt-header">
-                <h3>💭 AI Assistant${data.accessibilityMode ? ' (Accessibility Mode)' : ''}</h3>
-                <button class="ai-close-btn" aria-label="Close">✕</button>
-            </div>
-            <div class="ai-prompt-input-area">
-                <textarea id="ai-prompt-input" placeholder="Ask me anything..." rows="3" aria-label="AI prompt input"></textarea>
-                ${data.profile ? `<div class="profile-indicator">📌 ${getProfileName(data.profile)} Mode</div>` : ''}
-                <button id="ai-prompt-submit">Generate</button>
-            </div>
-            <div id="ai-prompt-output" class="ai-prompt-output" role="region" aria-live="polite"></div>
-        </div>
-    `;
-    
-    document.body.appendChild(overlay);
-    
-    overlay.querySelector('.ai-close-btn').addEventListener('click', () => overlay.remove());
-    
-    overlay.querySelector('#ai-prompt-submit').addEventListener('click', async () => {
-        const input = overlay.querySelector('#ai-prompt-input').value;
-        const output = overlay.querySelector('#ai-prompt-output');
-        
-        if (!input.trim()) {
-            output.innerHTML = '<p class="error">Please enter a prompt</p>';
-            return;
-        }
-        
-        output.innerHTML = '<p class="loading">Generating response...</p>';
-        
-        try {
-            if (window.ai && window.ai.languageModel) {
-                const capabilities = await window.ai.languageModel.capabilities();
-                
-                if (capabilities.available === 'readily') {
-                    const session = await window.ai.languageModel.create({
-                        systemPrompt: data.profile ? getAccessibilitySystemPrompt(data.profile) : undefined
-                    });
-                    
-                    const result = await session.prompt(input);
-                    output.innerHTML = `<div class="result-text">${formatResultForAccessibility(result, data.profile)}</div>`;
-                    session.destroy();
-                } else {
-                    throw new Error('Use cloud');
-                }
-            } else {
-                throw new Error('Use cloud');
-            }
-        } catch (error) {
-            try {
-                const response = await fetch(`${BACKEND_URL}/api/hybrid/prompt`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        prompt: input,
-                        useCloud: true,
-                        userId,
-                        accessibilityMode: data.profile
-                    })
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    output.innerHTML = `
-                        <div class="cloud-badge">☁️ Cloud AI</div>
-                        <div class="result-text">${formatResultForAccessibility(result.response, data.profile)}</div>
-                    `;
-                }
-            } catch (cloudError) {
-                output.innerHTML = `<p class="error">Error: ${cloudError.message}</p>`;
-            }
-        }
-    });
-    
-    overlay.querySelector('#ai-prompt-input').focus();
-}
-
-// ============================================
-// PROOFREADER
-// ============================================
-
-async function activateProofreader(data) {
-    try {
-        const selection = window.getSelection().toString();
-        
-        if (!selection) {
-            showToast('Please select some text to proofread', 'error');
-            return;
-        }
-        
-        if (!window.ai || !window.ai.proofreader) {
-            showToast('Proofreader API not available', 'error');
-            return;
-        }
-        
-        showToast('🔤 Proofreading text...');
-        
-        const proofreader = await window.ai.proofreader.create({
-            includeCorrectionTypes: true,
-            includeCorrectionExplanations: true
-        });
-        
-        const result = await proofreader.proofread(selection);
-        showProofreadResults(result, selection, data.profile);
-        proofreader.destroy();
-        
-    } catch (error) {
-        showToast('Proofreading error: ' + error.message, 'error');
-    }
-}
-
-function showProofreadResults(result, originalText, profile) {
-    removeExistingOverlays();
-    
-    const correctionsList = result.corrections && result.corrections.length > 0 ? 
-        result.corrections.map((correction, index) => {
-            const originalPart = originalText.substring(correction.startIndex, correction.endIndex);
-            return `
-                <div class="proofread-correction">
-                    <strong>Correction ${index + 1}:</strong><br>
-                    <span style="text-decoration: line-through; color: #d32f2f;">${originalPart}</span> → 
-                    <span style="color: #388e3c;">${correction.correction}</span>
-                    ${correction.explanation ? `<br><em style="font-size: 11px;">💡 ${correction.explanation}</em>` : ''}
-                </div>
-            `;
-        }).join('') : '<p style="text-align: center; color: #4caf50; padding: 20px;">✓ Perfect! No corrections needed</p>';
-    
-    const overlay = document.createElement('div');
-    overlay.id = 'ai-proofread-overlay';
-    overlay.innerHTML = `
-        <div class="ai-prompt-container">
-            <div class="ai-prompt-header">
-                <h3>🔤 Proofreader Results</h3>
-                <button class="ai-close-btn">✕</button>
-            </div>
-            <div class="ai-prompt-output">
-                <div class="proofread-section">
-                    <h4>Original:</h4>
-                    <p>${originalText}</p>
-                </div>
-                <div class="proofread-section">
-                    <h4>Corrections Found: ${result.corrections ? result.corrections.length : 0}</h4>
-                    ${correctionsList}
-                </div>
-                <div class="proofread-section">
-                    <h4>Corrected Text:</h4>
-                    <p>${result.corrected || result.correctedInput || originalText}</p>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(overlay);
-    overlay.querySelector('.ai-close-btn').addEventListener('click', () => overlay.remove());
-}
-
-// ============================================
-// SUMMARIZER
-// ============================================
-
-function showSummarizerOptions(data) {
-    removeExistingOverlays();
-    
-    const overlay = document.createElement('div');
-    overlay.id = 'ai-summarizer-overlay';
-    overlay.innerHTML = `
-        <div class="ai-prompt-container">
-            <div class="ai-prompt-header">
-                <h3>📄 Summarizer</h3>
-                <button class="ai-close-btn">✕</button>
-            </div>
-            <div class="ai-summarizer-options">
-                <button class="option-btn" id="summarize-inline">Summarize This Page</button>
-                <button class="option-btn" id="summarize-docs">Export to Google Docs</button>
-            </div>
-            <div id="ai-summarizer-output" class="ai-prompt-output"></div>
-        </div>
-    `;
-    
-    document.body.appendChild(overlay);
-    
-    overlay.querySelector('.ai-close-btn').addEventListener('click', () => overlay.remove());
-    overlay.querySelector('#summarize-inline').addEventListener('click', () => summarizeCurrentPage(overlay, data));
-    overlay.querySelector('#summarize-docs').addEventListener('click', () => exportToGoogleDocs(data));
-}
-
-async function summarizeCurrentPage(overlay, data) {
-    const output = overlay.querySelector('#ai-summarizer-output');
-    output.innerHTML = '<p class="loading">Summarizing content...</p>';
-    
-    try {
-        const pageContent = extractMainContent();
-        
-        if (window.ai && window.ai.summarizer) {
-            const summarizer = await window.ai.summarizer.create({
-                type: 'tldr',
-                length: 'short'
-            });
-            
-            const summary = await summarizer.summarize(pageContent);
-            output.innerHTML = `<div class="result-text">${formatResultForAccessibility(summary, data.profile)}</div>`;
-            summarizer.destroy();
-        } else {
-            throw new Error('Summarizer API not available');
-        }
-    } catch (error) {
-        output.innerHTML = `<p class="error">Error: ${error.message}</p>`;
-    }
-}
-
-async function exportToGoogleDocs(data) {
-    try {
-        const pageContent = extractMainContent();
-        const pageUrl = window.location.href;
-        const pageTitle = document.title;
-        
-        let summary = 'Summary generation in progress...';
-        
-        if (window.ai && window.ai.summarizer) {
-            const summarizer = await window.ai.summarizer.create({ type: 'tldr', length: 'medium' });
-            summary = await summarizer.summarize(pageContent);
-            summarizer.destroy();
-        }
-        
-        const docsContent = `# Summary: ${pageTitle}\n\n**Source:** ${pageUrl}\n**Generated:** ${new Date().toLocaleString()}\n\n## Summary\n\n${summary}\n\n---\n*Generated by ChromeAI Plus*`;
-        
-        navigator.clipboard.writeText(docsContent);
-        window.open('https://docs.google.com/document/create', '_blank');
-        showToast('📄 Content copied! Paste it in Google Docs');
-        
-    } catch (error) {
-        showToast('Export error: ' + error.message, 'error');
-    }
-}
-
-// ============================================
-// TRANSLATOR
-// ============================================
-
-function showTranslatorInterface(data) {
-    removeExistingOverlays();
-    
-    const overlay = document.createElement('div');
-    overlay.id = 'ai-translator-overlay';
-    overlay.innerHTML = `
-        <div class="ai-prompt-container">
-            <div class="ai-prompt-header">
-                <h3>🌐 Translator</h3>
-                <button class="ai-close-btn">✕</button>
-            </div>
-            <div class="ai-translator-controls">
-                <select id="target-language">
-                    <option value="">Select language</option>
-                    <option value="es">Spanish</option>
-                    <option value="fr">French</option>
-                    <option value="de">German</option>
-                    <option value="ja">Japanese</option>
-                    <option value="ko">Korean</option>
-                    <option value="zh">Chinese</option>
-                    <option value="ar">Arabic</option>
-                    <option value="hi">Hindi</option>
-                </select>
-                <button id="translate-page-btn">Translate Page</button>
-                <button id="translate-selection-btn">Translate Selection</button>
-            </div>
-            <div id="ai-translator-output" class="ai-prompt-output"></div>
-        </div>
-    `;
-    
-    document.body.appendChild(overlay);
-    
-    overlay.querySelector('.ai-close-btn').addEventListener('click', () => overlay.remove());
-    overlay.querySelector('#translate-page-btn').addEventListener('click', () => translatePage(overlay));
-    overlay.querySelector('#translate-selection-btn').addEventListener('click', () => translateSelection(overlay));
-}
-
-async function translatePage(overlay) {
-    const output = overlay.querySelector('#ai-translator-output');
-    const targetLang = overlay.querySelector('#target-language').value;
-    
-    if (!targetLang) {
-        output.innerHTML = '<p class="error">Please select a language</p>';
-        return;
-    }
-    
-    output.innerHTML = '<p class="loading">Translating page...</p>';
-    
-    try {
-        if (!window.translation || !window.translation.Translator) {
-            throw new Error('Translator API not available');
-        }
-        
-        const translator = await window.translation.Translator.create({
-            sourceLanguage: 'en',
-            targetLanguage: targetLang
-        });
-        
-        const textNodes = getTextNodes(document.body);
-        let count = 0;
-        
-        for (const node of textNodes.slice(0, 50)) {
-            if (node.textContent.trim()) {
-                const translated = await translator.translate(node.textContent);
-                node.textContent = translated;
-                count++;
-            }
-        }
-        
-        output.innerHTML = `<p class="success">✓ Translated ${count} elements</p>`;
-        
-    } catch (error) {
-        output.innerHTML = `<p class="error">Error: ${error.message}</p>`;
-    }
-}
-
-async function translateSelection(overlay) {
-    const output = overlay.querySelector('#ai-translator-output');
-    const targetLang = overlay.querySelector('#target-language').value;
-    const selection = window.getSelection().toString();
-    
-    if (!targetLang) {
-        output.innerHTML = '<p class="error">Please select a language</p>';
-        return;
-    }
-    
-    if (!selection) {
-        output.innerHTML = '<p class="error">Please select text first</p>';
-        return;
-    }
-    
-    output.innerHTML = '<p class="loading">Translating...</p>';
-    
-    try {
-        if (!window.translation || !window.translation.Translator) {
-            throw new Error('Translator API not available');
-        }
-        
-        const translator = await window.translation.Translator.create({
-            sourceLanguage: 'en',
-            targetLanguage: targetLang
-        });
-        
-        const translated = await translator.translate(selection);
-        
-        output.innerHTML = `
-            <div class="translation-result">
-                <h4>Original:</h4>
-                <p>${selection}</p>
-                <h4>Translation:</h4>
-                <p>${translated}</p>
-            </div>
-        `;
-        
-    } catch (error) {
-        output.innerHTML = `<p class="error">Error: ${error.message}</p>`;
-    }
-}
-
-// ============================================
-// MULTIMODAL: SCREENSHOT
-// ============================================
-
-async function captureAndAnalyzeScreenshot(data) {
-    try {
-        showToast('📸 Capturing screenshot...');
-        
-        const screenshot = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
-        
-        const overlay = document.createElement('div');
-        overlay.id = 'screenshot-analysis-overlay';
-        overlay.innerHTML = `
-            <div class="ai-prompt-container">
-                <div class="ai-prompt-header">
-                    <h3>📸 Screenshot Analysis</h3>
-                    <button class="ai-close-btn">✕</button>
-                </div>
-                <div class="screenshot-preview">
-                    <img src="${screenshot}" alt="Captured screenshot" style="max-width: 100%; border-radius: 8px;">
-                </div>
-                <div class="ai-prompt-input-area">
-                    <input type="text" id="screenshot-query" placeholder="What would you like to know about this image?">
-                    <button id="analyze-screenshot-btn">Analyze</button>
-                </div>
-                <div id="screenshot-output" class="ai-prompt-output"></div>
-            </div>
-        `;
-        
-        document.body.appendChild(overlay);
-        
-        overlay.querySelector('.ai-close-btn').addEventListener('click', () => overlay.remove());
-        
-        overlay.querySelector('#analyze-screenshot-btn').addEventListener('click', async () => {
-            const query = overlay.querySelector('#screenshot-query').value || 'Analyze this screenshot in detail';
-            const output = overlay.querySelector('#screenshot-output');
-            
-            output.innerHTML = '<p class="loading">Analyzing image with AI...</p>';
-            
-            try {
-                const response = await fetch(`${BACKEND_URL}/api/multimodal/analyze-image`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        image: screenshot,
-                        query,
-                        userId,
-                        accessibilityMode: data.profile
-                    })
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    output.innerHTML = `
-                        <div class="cloud-badge">☁️ Gemini Vision</div>
-                        <div class="result-text">${formatResultForAccessibility(result.analysis, data.profile)}</div>
-                    `;
-                }
-            } catch (error) {
-                output.innerHTML = `<p class="error">Error: ${error.message}</p>`;
-            }
-        });
-        
-    } catch (error) {
-        showToast('❌ Screenshot failed: ' + error.message, 'error');
-    }
-}
-
-// ============================================
-// MULTIMODAL: OCR + TRANSLATE
-// ============================================
-
-async function activateOCRTranslate(data) {
-    const overlay = document.createElement('div');
-    overlay.id = 'ocr-translate-overlay';
-    overlay.innerHTML = `
-        <div class="ai-prompt-container">
-            <div class="ai-prompt-header">
-                <h3>🖼️ OCR + Translate</h3>
-                <button class="ai-close-btn">✕</button>
-            </div>
-            <div class="ocr-upload-area">
-                <input type="file" id="ocr-image-upload" accept="image/*" style="display: none;">
-                <button id="upload-image-btn" class="option-btn">📁 Upload Image</button>
-                <button id="screenshot-ocr-btn" class="option-btn">📸 Take Screenshot</button>
-            </div>
-            <div id="ocr-image-preview"></div>
-            <div class="ai-translator-controls">
-                <select id="ocr-target-language">
-                    <option value="">Select target language</option>
-                    <option value="English">English</option>
-                    <option value="Spanish">Spanish</option>
-                    <option value="French">French</option>
-                    <option value="German">German</option>
-                    <option value="Japanese">Japanese</option>
-                    <option value="Korean">Korean</option>
-                </select>
-                <button id="process-ocr-btn" disabled>Extract & Translate</button>
-            </div>
-            <div id="ocr-output" class="ai-prompt-output"></div>
-        </div>
-    `;
-    
-    document.body.appendChild(overlay);
-    
-    let selectedImage = null;
-    
-    overlay.querySelector('.ai-close-btn').addEventListener('click', () => overlay.remove());
-    
-    overlay.querySelector('#upload-image-btn').addEventListener('click', () => {
-        overlay.querySelector('#ocr-image-upload').click();
-    });
-    
-    overlay.querySelector('#ocr-image-upload').addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                selectedImage = event.target.result;
-                overlay.querySelector('#ocr-image-preview').innerHTML = 
-                    `<img src="${selectedImage}" style="max-width: 100%; max-height: 200px; border-radius: 8px; margin: 12px 0;">`;
-                overlay.querySelector('#process-ocr-btn').disabled = false;
-            };
-            reader.readAsDataURL(file);
-        }
-    });
-    
-    overlay.querySelector('#screenshot-ocr-btn').addEventListener('click', async () => {
-        try {
-            const screenshot = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
-            selectedImage = screenshot;
-            overlay.querySelector('#ocr-image-preview').innerHTML = 
-                `<img src="${selectedImage}" style="max-width: 100%; max-height: 200px; border-radius: 8px; margin: 12px 0;">`;
-            overlay.querySelector('#process-ocr-btn').disabled = false;
-        } catch (error) {
-            showToast('Screenshot failed: ' + error.message, 'error');
-        }
-    });
-    
-    overlay.querySelector('#process-ocr-btn').addEventListener('click', async () => {
-        const targetLang = overlay.querySelector('#ocr-target-language').value;
-        const output = overlay.querySelector('#ocr-output');
-        
-        if (!targetLang) {
-            output.innerHTML = '<p class="error">Please select a target language</p>';
-            return;
-        }
-        
-        output.innerHTML = '<p class="loading">Extracting text and translating...</p>';
-        
-        try {
-            const response = await fetch(`${BACKEND_URL}/api/multimodal/ocr-translate`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    image: selectedImage,
-                    targetLanguage: targetLang,
-                    userId
-                })
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                output.innerHTML = `
-                    <div class="cloud-badge">☁️ Gemini Vision</div>
-                    <div class="result-text" style="white-space: pre-wrap;">${result.result}</div>
-                `;
-            }
-        } catch (error) {
-            output.innerHTML = `<p class="error">Error: ${error.message}</p>`;
-        }
-    });
-}
-
-// ============================================
-// ACCESSIBILITY: SIMPLIFY
-// ============================================
-
-async function simplifyPageContent(data) {
-    try {
-        showToast('📝 Simplifying page content...');
-        
-        const mainContent = extractMainContent();
-        
-        if (!mainContent) {
-            showToast('No content found to simplify', 'error');
-            return;
-        }
-        
-        let simplified;
-        try {
-            if (window.ai && window.ai.summarizer) {
-                const summarizer = await window.ai.summarizer.create({
-                    type: 'key-points',
-                    length: 'short'
-                });
-                simplified = await summarizer.summarize(mainContent);
-                summarizer.destroy();
-            } else {
-                throw new Error('Use cloud');
-            }
-        } catch (error) {
-            const response = await fetch(`${BACKEND_URL}/api/hybrid/simplify`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    text: mainContent,
-                    useCloud: true,
-                    userId,
-                    accessibilityMode: data.profile
-                })
-            });
-            
-            const result = await response.json();
-            simplified = result.simplified;
-        }
-        
-        showSimplifiedContent(simplified, data.profile);
-        
-    } catch (error) {
-        showToast('Simplification error: ' + error.message, 'error');
-    }
-}
-
-async function simplifySelectedText(text) {
-    try {
-        if (!text || !text.trim()) {
-            showToast('Please select text to simplify', 'error');
-            return;
-        }
-        
-        showToast('📝 Simplifying text...');
-        
-        let simplified;
-        if (window.ai && window.ai.summarizer) {
-            const summarizer = await window.ai.summarizer.create({
-                type: 'key-points',
-                length: 'short'
-            });
-            simplified = await summarizer.summarize(text);
-            summarizer.destroy();
-        } else {
-            const response = await fetch(`${BACKEND_URL}/api/hybrid/simplify`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    text,
-                    useCloud: true,
-                    userId,
-                    accessibilityMode: currentProfile
-                })
-            });
-            
-            const result = await response.json();
-            simplified = result.simplified;
-        }
-        
-        showSimplifiedContent(simplified, currentProfile);
-        
-    } catch (error) {
-        showToast('Simplification error: ' + error.message, 'error');
-    }
-}
-
-function showSimplifiedContent(content, profile) {
-    removeExistingOverlays();
-    
-    const overlay = document.createElement('div');
-    overlay.id = 'simplified-content-overlay';
-    overlay.innerHTML = `
-        <div class="ai-prompt-container">
-            <div class="ai-prompt-header">
-                <h3>📝 Simplified Content${profile ? ' (' + getProfileName(profile) + ')' : ''}</h3>
-                <button class="ai-close-btn">✕</button>
-            </div>
-            <div class="ai-prompt-output" style="max-height: 500px; overflow-y: auto;">
-                <div class="result-text ${profile ? 'accessibility-' + profile : ''}" style="line-height: 1.8;">
-                    ${formatResultForAccessibility(content, profile)}
-                </div>
-            </div>
-            <div style="padding: 16px; border-top: 1px solid #e0e0e0; display: flex; gap: 8px;">
-                <button id="read-aloud-simplified" class="option-btn" style="flex: 1;">🔊 Read Aloud</button>
-                <button id="copy-simplified" class="option-btn" style="flex: 1;">📋 Copy</button>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(overlay);
-    
-    overlay.querySelector('.ai-close-btn').addEventListener('click', () => overlay.remove());
-    
-    overlay.querySelector('#read-aloud-simplified').addEventListener('click', () => {
-        if (window.voiceReader) {
-            window.voiceReader.show();
-            window.voiceReader.contentArray = [content];
-            window.voiceReader.currentIndex = 0;
-            window.voiceReader.readCurrent();
-        }
-    });
-    
-    overlay.querySelector('#copy-simplified').addEventListener('click', () => {
-        navigator.clipboard.writeText(content);
-        showToast('✓ Copied to clipboard!');
-    });
-}
-
-// ============================================
-// ACCESSIBILITY: FOCUS MODE
-// ============================================
-
-let focusModeActive = false;
-let originalStyles = null;
-
-function enableFocusMode(data) {
-    if (focusModeActive) {
-        if (originalStyles) {
-            document.body.style.cssText = originalStyles;
-        }
-        document.querySelectorAll('.focus-mode-hidden').forEach(el => {
-            el.classList.remove('focus-mode-hidden');
-            el.style.display = '';
-        });
-        focusModeActive = false;
-        showToast('Focus mode disabled');
-        return;
-    }
-    
-    focusModeActive = true;
-    originalStyles = document.body.style.cssText;
-    
-    const selectorsToHide = ['header', 'nav', 'aside', 'footer', '.sidebar', '.ad'];
-    
-    selectorsToHide.forEach(selector => {
-        document.querySelectorAll(selector).forEach(el => {
-            el.classList.add('focus-mode-hidden');
-            el.style.display = 'none';
-        });
-    });
-    
-    const mainContent = document.querySelector('main, article, .content') || document.body;
-    mainContent.style.maxWidth = '700px';
-    mainContent.style.margin = '0 auto';
-    mainContent.style.padding = '40px 20px';
-    mainContent.style.fontSize = data.profile === 'dyslexia' ? '18px' : '16px';
-    mainContent.style.lineHeight = '1.8';
-    
-    if (data.profile === 'dyslexia') {
-        mainContent.style.fontFamily = 'OpenDyslexic, "Comic Sans MS", sans-serif';
-    }
-    
-    const indicator = document.createElement('div');
-    indicator.id = 'focus-mode-indicator';
-    indicator.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 12px 20px;
-        border-radius: 25px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        z-index: 999999;
-        cursor: pointer;
-        font-size: 13px;
-        font-weight: 600;
-    `;
-    indicator.textContent = '🎯 Focus Mode Active - Click to Exit';
-    indicator.addEventListener('click', () => {
-        enableFocusMode(data);
-        indicator.remove();
-    });
-    
-    document.body.appendChild(indicator);
-    showToast('🎯 Focus mode enabled');
-}
-
-// ============================================
-// CONTEXT MENU HANDLERS
-// ============================================
-
-async function handleContextMenuTranslation(text) {
-    const targetLang = prompt('Enter language code (es, fr, de, ja, ko, zh):');
-    if (!targetLang) return;
-    
-    try {
-        const translator = await window.translation.Translator.create({
-            sourceLanguage: 'en',
-            targetLanguage: targetLang
-        });
-        
-        const translated = await translator.translate(text);
-        showQuickTranslation(text, translated, targetLang);
-        
-    } catch (error) {
-        showToast('Translation error: ' + error.message, 'error');
-    }
-}
-
-async function handleSelectionProofreading(text) {
-    try {
-        if (!window.ai || !window.ai.proofreader) {
-            showToast('Proofreader API not available', 'error');
-            return;
-        }
-        
-        const proofreader = await window.ai.proofreader.create({
-            includeCorrectionTypes: true,
-            includeCorrectionExplanations: true
-        });
-        
-        const result = await proofreader.proofread(text);
-        showProofreadResults(result, text, currentProfile);
-        proofreader.destroy();
-        
-    } catch (error) {
-        showToast('Proofreading error: ' + error.message, 'error');
-    }
-}
-
-// ============================================
-// UTILITY FUNCTIONS
-// ============================================
-
-function showQuickTranslation(original, translated, targetLang) {
-    const toast = document.createElement('div');
-    toast.style.cssText = `
-        position: fixed;
-        top: 100px;
-        right: 20px;
-        width: 350px;
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-        z-index: 999999;
-        padding: 20px;
-    `;
-    
-    toast.innerHTML = `
-        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-            <strong>Translation (${targetLang})</strong>
-            <button onclick="this.parentElement.parentElement.remove()" style="background: none; border: none; cursor: pointer;">×</button>
-        </div>
-        <div style="background: #f5f5f5; padding: 12px; border-radius: 8px; margin-bottom: 8px;">
-            <strong>Original:</strong><br>${original}
-        </div>
-        <div style="background: #e8f5e9; padding: 12px; border-radius: 8px;">
-            <strong>Translated:</strong><br>${translated}
-        </div>
-    `;
-    
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 10000);
-}
-
-function extractMainContent() {
-    const selectors = ['article', 'main', '.content', '#content', '.post'];
-    
-    for (const selector of selectors) {
-        const element = document.querySelector(selector);
-        if (element) {
-            return element.innerText.slice(0, 5000);
-        }
-    }
-    
-    return document.body.innerText.slice(0, 5000);
-}
-
-function getTextNodes(element) {
-    const textNodes = [];
-    const walk = document.createTreeWalker(
-        element,
-        NodeFilter.SHOW_TEXT,
-        {
-            acceptNode: (node) => {
-                if (['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(node.parentElement.tagName)) {
-                    return NodeFilter.FILTER_REJECT;
-                }
-                return NodeFilter.FILTER_ACCEPT;
-            }
-        }
-    );
-    
-    let node;
-    while (node = walk.nextNode()) {
-        textNodes.push(node);
-    }
-    
-    return textNodes;
 }
 
 function removeExistingOverlays() {
-    const overlays = [
-        'ai-prompt-overlay',
-        'ai-proofread-overlay',
-        'ai-summarizer-overlay',
-        'ai-translator-overlay',
-        'screenshot-analysis-overlay',
-        'ocr-translate-overlay',
-        'simplified-content-overlay'
-    ];
+    const overlays = document.querySelectorAll('[id$="-overlay"], .chromeai-overlay');
+    overlays.forEach(overlay => overlay.remove());
+}
+
+// ============================================
+// UNIVERSAL AI HANDLER (HYBRID-FIRST: On-Device Preferred, Cloud Fallback)
+// ============================================
+
+/**
+ * Calls the appropriate hybrid AI endpoint, defaulting to attempting on-device processing first.
+ * The on-device task is delegated to the background script.
+ */
+async function callAI(prompt, options = {}) {
+    console.log('🤖 Calling AI...');
     
-    overlays.forEach(id => {
-        const existing = document.getElementById(id);
-        if (existing) existing.remove();
+    const isSimplifyCall = options.isSimplify || false;
+    
+    // Helper for making the actual fetch call (used for both hybrid and forced cloud)
+    const performFetch = async (forceCloud) => {
+        let endpoint = isSimplifyCall ? `${BACKEND_URL}/api/hybrid/simplify` : `${BACKEND_URL}/api/hybrid/prompt`;
+        
+        console.log(`📡 Fetching from backend (Cloud forced: ${forceCloud})...`);
+        
+        const requestBody = isSimplifyCall ? {
+            text: prompt,
+            useCloud: forceCloud, 
+            accessibilityMode: currentProfile,
+            userId: userId
+        } : {
+            prompt: prompt,
+            useCloud: forceCloud, 
+            accessibilityMode: currentProfile,
+            userId: userId
+        };
+
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Backend returned ${response.status}`);
+        }
+        
+        return await response.json();
+    };
+
+    try {
+        // 1. Attempt Hybrid/On-Device Check (useCloud: false)
+        const data = await performFetch(false);
+        
+        if (!data.success) {
+            throw new Error(data.error || 'AI request failed');
+        }
+        
+        // 2. Check instruction: If backend says 'on-device', client must delegate it.
+        if (data.source === 'on-device') {
+            console.log('✅ Backend instructed to use On-Device AI. DELEGATING to Background Service Worker...');
+
+            // --- START: LOCAL AI EXECUTION DELEGATION ---
+            try {
+                // Send a message to the background service worker to run the local AI task
+                const localResponse = await chrome.runtime.sendMessage({
+                    type: 'RUN_LOCAL_GEMINI',
+                    prompt: prompt
+                });
+
+                if (localResponse && localResponse.success) {
+                    console.log('✅ Local AI responded from background.');
+                    return localResponse.response;
+                } else {
+                    // Local execution failed (e.g., model not downloaded, background error)
+                    throw new Error(localResponse?.error || 'Background local AI execution failed.');
+                }
+            } catch (backgroundError) {
+                console.error('❌ Failed to communicate with background local AI (Local execution failed):', backgroundError);
+                console.log('⚠️ Falling through to Cloud Fallback...');
+                // Fall through to the Cloud Fallback logic below
+            }
+            // --- END: DELEGATION FIX ---
+            
+            // 3. Fallback: Force a cloud call (useCloud: true) if local execution failed
+            const cloudData = await performFetch(true); 
+            
+            if (!cloudData.success) {
+                throw new Error(cloudData.error || 'Cloud fallback failed');
+            }
+            console.log('✅ Cloud AI responded (Fallback)');
+            return isSimplifyCall ? cloudData.simplified : cloudData.response;
+        }
+        
+        // 4. If backend executed Cloud (e.g., prompt was too long/auto-forced)
+        console.log('✅ AI responded (Cloud executed by backend)');
+        return isSimplifyCall ? data.simplified : data.response;
+
+    } catch (error) {
+        console.error('❌ AI Error:', error);
+        throw new Error(`AI unavailable: ${error.message}. Make sure Flask backend is running on port 5000.`);
+    }
+}
+
+// ============================================
+// OVERLAY CAPTURE UTILITY
+// ============================================
+
+/**
+ * Manages hiding and showing a specific overlay element during a screenshot capture.
+ * Uses display: 'none' for guaranteed removal from the visible layout.
+ * @param {string} overlayId The ID of the overlay to hide.
+ * @param {Function} callback The capture function to execute while hidden.
+ * @returns {Promise<any>} The result of the callback function.
+ */
+async function hideOverlayAndCapture(overlayId, callback) {
+    const overlay = document.getElementById(overlayId);
+    if (!overlay) {
+        console.warn(`Overlay element with ID ${overlayId} not found.`);
+        return callback();
+    }
+
+    const originalDisplay = overlay.style.display;
+    let result = null;
+    
+    try {
+        // Step 1: Set display to 'none' for GUARANTEED removal from the screenshot
+        overlay.style.display = 'none'; 
+        
+        // Use a slight delay to ensure the DOM is fully rendered before capture request is sent
+        await new Promise(resolve => setTimeout(resolve, 50)); 
+        
+        // Step 2: Perform the capture while hidden
+        result = await callback();
+        
+    } finally {
+        // Step 3: Restore the overlay's original display property
+        overlay.style.display = originalDisplay;
+    }
+
+    return result;
+}
+
+
+// ============================================
+// OCR + TRANSLATE
+// ============================================
+
+async function activateOCRTranslate() {
+    console.log('📸 Activating OCR Translate...');
+    
+    // Use a unique ID for the overlay
+    const OVERLAY_ID = 'ocr-translate-overlay';
+    // CRITICAL FIX: Ensure createOverlay uses the fixed positioning for centering
+    const overlay = createOverlay(OVERLAY_ID, '🔍 OCR + Translate');
+    
+    const content = `
+        <div style="padding: 20px;">
+            <p style="margin-bottom: 16px; color: #666; font-size: 14px;">
+                Capture text from images and translate it
+            </p>
+            
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Translate to:</label>
+                <select id="ocr-target-language" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;">
+                    <option value="English">English</option>
+                    <option value="Spanish">Spanish (Español)</option>
+                    <option value="French">French (Français)</option>
+                    <option value="German">German (Deutsch)</option>
+                    <option value="Chinese">Chinese (中文)</option>
+                    <option value="Japanese">Japanese (日本語)</option>
+                    <option value="Korean">Korean (한국어)</option>
+                    <option value="Hindi">Hindi (हिन्दी)</option>
+                    <option value="Arabic">Arabic (العربية)</option>
+                </select>
+            </div>
+            
+            <button id="ocr-capture-btn" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px; margin-bottom: 8px;">
+                📸 Capture Screenshot
+            </button>
+            
+            <button id="ocr-upload-btn" style="width: 100%; padding: 14px; background: #2196f3; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px;">
+                📁 Upload Image
+            </button>
+            
+            <input type="file" id="ocr-file-input" accept="image/*" style="display: none;">
+            
+            <div id="ocr-preview" style="display: none; margin-top: 16px;">
+                <img id="ocr-img" style="width: 100%; max-height: 300px; object-fit: contain; border-radius: 8px; margin-bottom: 12px; border: 2px solid #e0e0e0;">
+                <button id="ocr-process-btn" style="width: 100%; padding: 14px; background: #4caf50; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px;">
+                    🔍 Extract & Translate Text
+                </button>
+            </div>
+            
+            <div id="ocr-result" style="margin-top: 16px; display: none;">
+            </div>
+        </div>
+    `;
+    
+    overlay.querySelector('.chromeai-modal-body').innerHTML = content;
+    document.body.appendChild(overlay);
+    
+    let currentImageData = null;
+    
+    // Capture screenshot BUTTON HANDLER
+    document.getElementById('ocr-capture-btn').onclick = async () => {
+        console.log('📸 Capture button clicked');
+        try {
+            showNotification('📸 Capturing screenshot...', 'info');
+            
+            // CRITICAL FIX: Hide the overlay before capturing the screenshot
+            const dataUrl = await hideOverlayAndCapture(OVERLAY_ID, captureScreenshot);
+            
+            console.log('✅ Screenshot captured, size:', dataUrl.length);
+            showOCRPreview(dataUrl);
+        } catch (error) {
+            console.error('❌ Screenshot failed:', error);
+            showNotification('Screenshot failed: ' + error.message, 'error');
+        }
+    };
+    
+    // Upload image
+    document.getElementById('ocr-upload-btn').onclick = () => {
+        console.log('📁 Upload button clicked');
+        document.getElementById('ocr-file-input').click();
+    };
+    
+    document.getElementById('ocr-file-input').onchange = (e) => {
+        const file = e.target.files[0];
+        console.log('📁 File selected:', file?.name);
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                console.log('✅ File loaded');
+                showOCRPreview(event.target.result);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+    
+    function showOCRPreview(dataUrl) {
+        console.log('👁️ Showing preview');
+        currentImageData = dataUrl;
+        document.getElementById('ocr-img').src = dataUrl;
+        document.getElementById('ocr-preview').style.display = 'block';
+    }
+    
+    // Process OCR + Translate
+    document.getElementById('ocr-process-btn').onclick = async () => {
+        // ... rest of the OCR backend communication logic
+        console.log('🔍 Processing OCR...');
+        const targetLanguage = document.getElementById('ocr-target-language').value;
+        const resultDiv = document.getElementById('ocr-result');
+        
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = `
+            <div style="padding: 16px; background: #e3f2fd; border-radius: 8px; text-align: center;">
+                <div style="font-size: 24px; margin-bottom: 8px;">⏳</div>
+                <div>Processing with Gemini Vision AI...</div>
+                <small>Extracting text and translating to ${targetLanguage}</small>
+            </div>
+        `;
+        
+        try {
+            const result = await processOCRWithBackend(currentImageData, targetLanguage);
+            console.log('✅ OCR completed');
+            
+            resultDiv.innerHTML = `
+                <div style="padding: 16px; background: #e8f5e9; border-radius: 8px;">
+                    <div style="white-space: pre-wrap; line-height: 1.6;">
+                        ${formatOCRResult(result)}
+                    </div>
+                    <button id="copy-result-btn" style="margin-top: 12px; width: 100%; padding: 10px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                        📋 Copy Translation
+                    </button>
+                </div>
+            `;
+            
+            document.getElementById('copy-result-btn').onclick = () => {
+                navigator.clipboard.writeText(result);
+                showNotification('✓ Copied to clipboard', 'success');
+            };
+            
+        } catch (error) {
+            console.error('❌ OCR failed:', error);
+            resultDiv.innerHTML = `
+                <div style="padding: 16px; background: #ffebee; border-radius: 8px; color: #c62828;">
+                    <strong>❌ Error:</strong> ${error.message}<br><br>
+                    <small>
+                        <strong>Troubleshooting:</strong><br>
+                        1. Make sure Flask backend is running (python app.py)<br>
+                        2. Check Gemini API key in .env file<br>
+                        3. Test: <a href="http://localhost:5000/api/test/all" target="_blank" style="color: #1976d2;">http://localhost:5000/api/test/all</a>
+                    </small>
+                </div>
+            `;
+        }
+    };
+    
+    overlay.onclick = (e) => {
+        if (e.target === overlay) overlay.remove();
+    };
+}
+
+async function captureScreenshot() {
+    console.log('📸 Requesting screenshot from background...');
+    
+    return new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({
+            type: 'CAPTURE_SCREENSHOT',
+            captureType: 'visible'
+        }, (response) => {
+            if (chrome.runtime.lastError) {
+                console.error('❌ Screenshot error:', chrome.runtime.lastError);
+                reject(new Error(chrome.runtime.lastError.message));
+            } else if (response && response.dataUrl) {
+                console.log('✅ Screenshot received');
+                resolve(response.dataUrl);
+            } else {
+                console.error('❌ No screenshot data received');
+                reject(new Error('Screenshot capture failed - no data received'));
+            }
+        });
     });
 }
 
-function showToast(message, type = 'success') {
-    const toast = document.createElement('div');
-    toast.style.cssText = `
-        position: fixed;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: ${type === 'error' ? '#f44336' : '#323232'};
-        color: white;
-        padding: 12px 24px;
-        border-radius: 25px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        z-index: 9999999;
-        font-size: 13px;
-        font-weight: 600;
+async function processOCRWithBackend(imageDataUrl, targetLanguage) {
+    console.log('🌐 Calling backend OCR API...');
+    console.log('Image size:', imageDataUrl.length, 'bytes');
+    
+    const response = await fetch(`${BACKEND_URL}/api/multimodal/ocr-translate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            image: imageDataUrl,
+            targetLanguage: targetLanguage,
+            userId: userId
+        })
+    });
+    
+    console.log('📡 Backend response status:', response.status);
+    
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Backend error response:', errorText);
+        throw new Error(`Backend error ${response.status}: ${errorText}`);
+    }
+    
+    const data = await response.json();
+    console.log('📦 Backend response data:', data);
+    
+    if (!data.success) {
+        throw new Error(data.error || 'OCR processing failed');
+    }
+    
+    return data.result;
+}
+
+function formatOCRResult(result) {
+    return result
+        .replace(/ORIGINAL TEXT:/gi, '<strong style="color: #1976d2; font-size: 16px;">📝 ORIGINAL TEXT:</strong>')
+        .replace(/TRANSLATION:/gi, '<br><br><strong style="color: #388e3c; font-size: 16px;">🌐 TRANSLATION:</strong>')
+        .replace(/\n/g, '<br>');
+}
+
+// ============================================
+// SCREENSHOT ANALYSIS
+// ============================================
+
+async function captureAndAnalyzeScreenshot() {
+    console.log('📷 Activating Screenshot Analysis...');
+    
+    const OVERLAY_ID = 'screenshot-analyzer-overlay';
+    const overlay = createOverlay(OVERLAY_ID, '📷 Screenshot Analyzer');
+    
+    const content = `
+        <div style="padding: 20px;">
+            <button id="capture-btn" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px; margin-bottom: 12px;">
+                📸 Capture Screenshot
+            </button>
+            
+            <div id="screenshot-preview" style="display: none;">
+                <img id="screenshot-img" style="width: 100%; border-radius: 8px; margin-bottom: 12px; border: 2px solid #e0e0e0;">
+                <textarea id="screenshot-query" placeholder="What would you like to know about this image?" style="width: 100%; height: 80px; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; margin-bottom: 12px;"></textarea>
+                <button id="analyze-btn" style="width: 100%; padding: 14px; background: #4caf50; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px;">
+                    🔍 Analyze with AI
+                </button>
+            </div>
+            
+            <div id="screenshot-result" style="margin-top: 16px; display: none;"></div>
+        </div>
     `;
-    toast.textContent = message;
-    document.body.appendChild(toast);
     
-    setTimeout(() => toast.remove(), 3000);
-}
-
-function getProfileName(profile) {
-    const names = {
-        'dyslexia': 'Dyslexia',
-        'adhd': 'ADHD',
-        'visual_impairment': 'Visual',
-        'non_native': 'Language Learner'
+    overlay.querySelector('.chromeai-modal-body').innerHTML = content;
+    document.body.appendChild(overlay);
+    
+    let capturedImage = null;
+    
+    // Capture screenshot BUTTON HANDLER
+    document.getElementById('capture-btn').onclick = async () => {
+        try {
+            showNotification('📸 Capturing...', 'info');
+            
+            // CRITICAL FIX: Hide the overlay before capturing the screenshot
+            const dataUrl = await hideOverlayAndCapture(OVERLAY_ID, captureScreenshot);
+            
+            capturedImage = dataUrl;
+            document.getElementById('screenshot-img').src = dataUrl;
+            document.getElementById('screenshot-preview').style.display = 'block';
+        } catch (error) {
+            showNotification('Screenshot failed: ' + error.message, 'error');
+        }
     };
-    return names[profile] || profile;
-}
-
-function getAccessibilitySystemPrompt(profile) {
-    const prompts = {
-        'dyslexia': 'You are helping someone with dyslexia. Use short sentences, simple words, bullet points.',
-        'adhd': 'You are helping someone with ADHD. Be concise, use numbered lists, highlight key points.',
-        'visual_impairment': 'You are helping someone with visual impairment. Describe visuals, use clear headings.',
-        'non_native': 'You are helping an English learner. Use simple vocabulary, define complex terms.'
+    
+    document.getElementById('analyze-btn').onclick = async () => {
+        const query = document.getElementById('screenshot-query').value.trim() || 'Analyze this image';
+        const resultDiv = document.getElementById('screenshot-result');
+        
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = '<div style="padding: 12px; background: #e3f2fd; border-radius: 8px;">⏳ Analyzing with Gemini Vision AI...</div>';
+        
+        try {
+            const analysis = await analyzeImageWithBackend(capturedImage, query);
+            
+            resultDiv.innerHTML = `
+                <div style="padding: 16px; background: #e8f5e9; border-radius: 8px;">
+                    <strong>🤖 AI Analysis:</strong><br><br>
+                    <div style="white-space: pre-wrap; line-height: 1.6;">
+                        ${analysis}
+                    </div>
+                </div>
+            `;
+        } catch (error) {
+            resultDiv.innerHTML = `
+                <div style="padding: 12px; background: #ffebee; border-radius: 8px; color: #c62828;">
+                    <strong>Error:</strong> ${error.message}
+                </div>
+            `;
+        }
     };
-    return prompts[profile] || '';
+    
+    overlay.onclick = (e) => {
+        if (e.target === overlay) overlay.remove();
+    };
 }
 
-function formatResultForAccessibility(text, profile) {
-    if (!profile) return text;
+async function analyzeImageWithBackend(imageDataUrl, query) {
+    const response = await fetch(`${BACKEND_URL}/api/multimodal/analyze-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            image: imageDataUrl,
+            query: query,
+            accessibilityMode: currentProfile,
+            userId: userId
+        })
+    });
     
-    if (profile === 'dyslexia') {
-        text = text.replace(/\.\s/g, '.\n\n');
-        text = text.replace(/\b([A-Z]{3,})\b/g, '<strong style="color: #667eea;">$1</strong>');
+    if (!response.ok) {
+        throw new Error(`Backend error: ${response.status}`);
     }
     
-    if (profile === 'adhd') {
-        text = text.replace(/KEY POINT:/g, '<strong style="color: #ff9800;">🎯 KEY POINT:</strong>');
-        text = text.replace(/IMPORTANT:/g, '<strong style="color: #f44336;">⚠️ IMPORTANT:</strong>');
+    const data = await response.json();
+    
+    if (!data.success) {
+        throw new Error(data.error || 'Analysis failed');
     }
     
-    return text;
+    return data.analysis;
 }
 
-function applyAccessibilitySettings() {
-    if (currentProfile === 'dyslexia') {
-        document.body.style.fontFamily = 'OpenDyslexic, "Comic Sans MS", sans-serif';
-    }
+// ============================================
+// OTHER FEATURES (Hybrid-First Logic applied)
+// ============================================
+
+async function showPromptInterface() {
+    const overlay = createOverlay('prompt-overlay', '💭 Ask AI Anything');
+    
+    overlay.querySelector('.chromeai-modal-body').innerHTML = `
+        <div style="padding: 20px;">
+            <textarea id="prompt-input" placeholder="Ask me anything..." style="width: 100%; height: 120px; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;"></textarea>
+            <button id="prompt-submit" style="width: 100%; margin-top: 12px; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">✨ Ask AI</button>
+            <div id="prompt-response" style="margin-top: 16px; display: none;"></div>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    document.getElementById('prompt-submit').onclick = async () => {
+        const input = document.getElementById('prompt-input').value.trim();
+        if (!input) return;
+        
+        const responseDiv = document.getElementById('prompt-response');
+        responseDiv.style.display = 'block';
+        responseDiv.innerHTML = '⏳ Thinking...';
+        
+        try {
+            const response = await callAI(input);
+            responseDiv.innerHTML = `<div style="padding: 12px; background: #e8f5e9; border-radius: 8px; white-space: pre-wrap;">${response}</div>`;
+        } catch (error) {
+            responseDiv.innerHTML = `<div style="padding: 12px; background: #ffebee; border-radius: 8px; color: #c62828;">${error.message}</div>`;
+        }
+    };
+    
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
 }
 
-window.addEventListener('beforeunload', async () => {
-    const duration = Math.floor((Date.now() - sessionStartTime) / 1000);
+async function activateProofreaderMode() {
+    let textToProofread = window.getSelection().toString().trim();
     
+    if (!textToProofread) {
+        textToProofread = extractMainContent();
+    }
+
+    if (!textToProofread) {
+        showNotification('Please select text or open a document on the page to proofread.', 'warning');
+        return;
+    }
+
+    const textForProcessing = textToProofread; 
+
+    const overlay = createOverlay('proofread-overlay', '🔤 Proofreader');
+    overlay.querySelector('.chromeai-modal-body').innerHTML = `
+        <div style="padding: 20px;">
+            <div id="proofread-original" style="margin-bottom: 16px; padding: 12px; background: #f0f0f0; border-radius: 8px; font-size: 14px; white-space: pre-wrap;">
+                <strong>Original Text:</strong><br>${textForProcessing}
+            </div>
+            <div id="proofread-result">
+                <div style="padding: 12px; background: #e3f2fd; border-radius: 8px;">⏳ Analyzing with AI...</div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
     try {
-        await fetch(`${BACKEND_URL}/api/analytics/session`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                userId,
-                documentType: window.location.hostname,
-                duration,
-                accessibilityMode: currentProfile
-            })
-        });
+        const prompt = `Proofread the following text for grammar, spelling, and clarity. Respond ONLY with the corrected text, ensuring the output has a smooth flow. Do NOT include any explanations or headers. Selected text: ${textForProcessing}`;
+        
+        const correctedText = await callAI(prompt);
+
+        document.getElementById('proofread-result').innerHTML = `
+            <div style="padding: 16px; background: #e8f5e9; border-radius: 8px;">
+                <strong>✅ Corrected Text:</strong><br>
+                <div id="corrected-output" style="white-space: pre-wrap; line-height: 1.6; margin-top: 8px;">${correctedText}</div>
+                <button id="copy-proofread-btn" style="margin-top: 12px; width: 100%; padding: 10px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    📋 Copy Correction
+                </button>
+            </div>
+        `;
+        document.getElementById('copy-proofread-btn').onclick = () => {
+            navigator.clipboard.writeText(correctedText);
+            showNotification('✓ Copied to clipboard', 'success');
+        };
+        
     } catch (error) {
-        // Fail silently
-        console.log(error)
+        document.getElementById('proofread-result').innerHTML = `
+            <div style="padding: 12px; background: #ffebee; border-radius: 8px; color: #c62828;">
+                <strong>❌ Error:</strong> ${error.message}
+            </div>
+        `;
     }
-});
+}
+// (In chromeai-plus/extension/content.js - REPLACE the existing showSummarizerOptions function)
+
+async function showSummarizerOptions() {
+    let textToSummarize = window.getSelection().toString().trim();
+    
+    // Fallback logic: If nothing is selected, use the whole document.
+    if (!textToSummarize) {
+        textToSummarize = extractMainContent();
+    }
+    
+    if (textToSummarize.length < 100) {
+        showNotification('Not enough content on the page to summarize. Please select more text.', 'warning');
+        return;
+    }
+    
+    // Shorten the display text to prevent modal overflow
+    const displayText = textToSummarize.substring(0, 500) + (textToSummarize.length > 500 ? '...' : '');
+    const fullContent = textToSummarize; // Use this variable for the final prompt
+
+    const overlay = createOverlay('summarizer-overlay', '📄 Summarizer');
+    
+    // 1. Updated Content: Show original text and a submit button
+    overlay.querySelector('.chromeai-modal-body').innerHTML = `
+        <div style="padding: 20px;">
+            <div id="summarizer-original" style="margin-bottom: 16px; padding: 12px; background: #f0f0f0; border-radius: 8px; font-size: 14px; max-height: 100px; overflow-y: auto; white-space: pre-wrap;">
+                <strong>Original Text (${fullContent.length} chars):</strong><br>${displayText}
+            </div>
+            
+            <button id="summarize-submit-btn" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px;">
+                ✨ Summarize Document
+            </button>
+            
+            <div id="summarizer-result" style="margin-top: 16px;"></div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const resultDiv = document.getElementById('summarizer-result');
+
+    // 2. New Event Listener: Wait for the user to click the button
+    document.getElementById('summarize-submit-btn').onclick = async () => {
+        
+        // Show loading state immediately upon click
+        resultDiv.innerHTML = `
+            <div style="padding: 12px; background: #e3f2fd; border-radius: 8px;">⏳ Summarizing content with AI...</div>
+        `;
+
+        try {
+            const prompt = `Summarize the following document concisely, clearly, and using bullet points for key takeaways. Document text: ${fullContent}`;
+            
+            const summary = await callAI(prompt);
+
+            resultDiv.innerHTML = `
+                <div style="padding: 16px; background: #e8f5e9; border-radius: 8px;">
+                    <strong>🤖 Summary:</strong><br>
+                    <div id="summary-output" style="white-space: pre-wrap; line-height: 1.6; margin-top: 8px;">${summary}</div>
+                    <button id="copy-summary-btn" style="margin-top: 12px; width: 100%; padding: 10px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                        📋 Copy Summary
+                    </button>
+                </div>
+            `;
+            document.getElementById('copy-summary-btn').onclick = () => {
+                navigator.clipboard.writeText(summary);
+                showNotification('✓ Copied to clipboard', 'success');
+            };
+        } catch (error) {
+            resultDiv.innerHTML = `
+                <div style="padding: 12px; background: #ffebee; border-radius: 8px; color: #c62828;">
+                    <strong>❌ Error:</strong> ${error.message}
+                </div>
+            `;
+        }
+    };
+    
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+}
+
+async function showTranslatorInterface() {
+    let selectedText = window.getSelection().toString().trim();
+    
+    if (!selectedText) {
+        selectedText = extractMainContent();
+    }
+    
+    if (!selectedText) {
+        showNotification('Please select text or open a document to translate.', 'warning');
+        return;
+    }
+
+    const overlay = createOverlay('translator-overlay', '🌐 Translator');
+    
+    overlay.querySelector('.chromeai-modal-body').innerHTML = `
+        <div style="padding: 20px;">
+            <div id="translate-original" style="margin-bottom: 16px; padding: 12px; background: #f0f0f0; border-radius: 8px; font-size: 14px; max-height: 100px; overflow-y: auto; white-space: pre-wrap;">
+                <strong>Selected Text:</strong><br>${selectedText.substring(0, 150)}...
+            </div>
+            
+            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Translate to:</label>
+            <select id="translate-target-language" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; margin-bottom: 12px;">
+                <option value="Spanish">Spanish (Español)</option>
+                <option value="French">French (Français)</option>
+                <option value="German">German (Deutsch)</option>
+                <option value="Hindi">Hindi (हिन्दी)</option>
+                <option value="Japanese">Japanese (日本語)</option>
+                <option value="Simple English">Simple English (for learners)</option>
+            </select>
+            
+            <button id="translate-submit-btn" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px;">
+                ✨ Translate
+            </button>
+            
+            <div id="translation-result" style="margin-top: 16px;"></div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
+    document.getElementById('translate-submit-btn').onclick = async () => {
+        const targetLanguage = document.getElementById('translate-target-language').value;
+        const resultDiv = document.getElementById('translation-result');
+        
+        resultDiv.innerHTML = `<div style="padding: 12px; background: #e3f2fd; border-radius: 8px;">⏳ Translating to ${targetLanguage}...</div>`;
+
+        try {
+            const prompt = `Translate the following text into ${targetLanguage}. Respond ONLY with the translated text. Selected text: ${selectedText}`;
+            
+            const translation = await callAI(prompt);
+
+            resultDiv.innerHTML = `
+                <div style="padding: 16px; background: #e8f5e9; border-radius: 8px;">
+                    <strong>🌐 Translation (${targetLanguage}):</strong><br>
+                    <div id="translation-output" style="white-space: pre-wrap; line-height: 1.6; margin-top: 8px;">${translation}</div>
+                    <button id="copy-translate-btn" style="margin-top: 12px; width: 100%; padding: 10px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                        📋 Copy Translation
+                    </button>
+                </div>
+            `;
+            document.getElementById('copy-translate-btn').onclick = () => {
+                navigator.clipboard.writeText(translation);
+                showNotification('✓ Copied to clipboard', 'success');
+            };
+        } catch (error) {
+            resultDiv.innerHTML = `
+                <div style="padding: 12px; background: #ffebee; border-radius: 8px; color: #c62828;">
+                    <strong>❌ Error:</strong> ${error.message}
+                </div>
+            `;
+        }
+    };
+}
+
+async function activateSimplify() {
+    const selectedText = window.getSelection().toString().trim();
+    if (!selectedText) {
+        showNotification('Please select text on the page to simplify.', 'warning');
+        return;
+    }
+
+    const overlay = createOverlay('simplify-content-overlay', '📝 Simplify Text');
+    
+    // Display the original text and a loading message
+    overlay.querySelector('.chromeai-modal-body').innerHTML = `
+        <div style="padding: 20px;">
+            <div id="simplify-original" style="margin-bottom: 16px; padding: 12px; background: #f0f0f0; border-radius: 8px; font-size: 14px; max-height: 100px; overflow-y: auto; white-space: pre-wrap;">
+                <strong>Original Text:</strong><br>${selectedText.substring(0, 500)}...
+            </div>
+            <div id="simplify-result">
+                <div style="padding: 12px; background: #e3f2fd; border-radius: 8px;">
+                    ⏳ Simplifying with AI based on your profile (${currentProfile || 'General'})...
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
+    try {
+        const simplifiedText = await callAI(selectedText, { isSimplify: true });
+        
+        // Display the successful result
+        document.getElementById('simplify-result').innerHTML = `
+            <div style="padding: 16px; background: #e8f5e9; border-radius: 8px;">
+                <strong>✨ Simplified Text:</strong><br>
+                <div id="simplified-output" style="white-space: pre-wrap; line-height: 1.6; margin-top: 8px;">${simplifiedText}</div>
+                <button id="copy-simplify-btn" style="margin-top: 12px; width: 100%; padding: 10px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    📋 Copy Simplified Text
+                </button>
+            </div>
+        `;
+        document.getElementById('copy-simplify-btn').onclick = () => {
+            navigator.clipboard.writeText(simplifiedText);
+            showNotification('✓ Copied to clipboard', 'success');
+        };
+        
+    } catch (error) {
+        document.getElementById('simplify-result').innerHTML = `
+            <div style="padding: 12px; background: #ffebee; border-radius: 8px; color: #c62828;">
+                <strong>❌ Error:</strong> ${error.message}
+            </div>
+        `;
+    }
+}
+
+async function activateVoiceReader() {
+    // Call the dedicated voiceReader object's methods, which will create the full controls
+    if (window.voiceReader) {
+        window.voiceReader.show();
+        window.voiceReader.startReading();
+        showNotification('🔊 Voice Reader Activated!', 'success');
+    } else {
+        showNotification('Voice Reader not fully initialized', 'error');
+    }
+}
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+/**
+ * Creates the modal overlay container with fixed positioning for reliable centering.
+ */
+function createOverlay(id, title) {
+    const overlay = document.createElement('div');
+    overlay.id = id;
+    // CRITICAL FIX: Use 'top/left/transform' centering for stability
+    overlay.style.cssText = `
+        position: fixed; 
+        top: 50%;
+        left: 50%;
+        transform: translate(-55%, -50%); /* Centering magic */
+        
+        background: rgba(0,0,0,0.6); 
+        z-index: 999999;
+        display: flex; /* For contents */
+        align-items: center; 
+        justify-content: center;
+        animation: fadeIn 0.2s;
+        /* Ensure overlay container covers max possible area without relying on stretch */
+        width: 100%;
+        height: 100%;
+        pointer-events: none; /* Allow clicks to pass through to underlying content for dismissal */
+    `;
+    
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        background: white; border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        max-width: 600px; width: 90%; max-height: 85vh; overflow-y: auto;
+        pointer-events: auto; /* Re-enable clicks for the modal itself */
+    `;
+    
+    modal.innerHTML = `
+        <div style="padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 16px 16px 0 0; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0;">${title}</h3>
+            <button class="close-btn" style="background: rgba(255,255,255,0.2); border: none; color: white; font-size: 20px; width: 32px; height: 32px; border-radius: 50%; cursor: pointer;">✕</button>
+        </div>
+        <div class="chromeai-modal-body"></div>
+    `;
+    
+    overlay.appendChild(modal);
+    modal.querySelector('.close-btn').onclick = () => overlay.remove();
+    
+    return overlay;
+}
+
+function showNotification(message, type = 'info') {
+    const colors = { success: '#4caf50', error: '#f44336', warning: '#ff9800', info: '#2196f3' };
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed; top: 20px; right: 20px; padding: 16px 24px;
+        background: ${colors[type]}; color: white; border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 9999999;
+        font-weight: 500; animation: slideIn 0.3s;
+    `;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    setTimeout(() => notification.remove(), 3000);
+}
+
+/**
+ * Extracts main readable text content from the current page/document, 
+ * supporting web pages, PDFs, and Google Docs.
+ */
+function extractMainContent() {
+    const hostname = window.location.hostname;
+    const url = window.location.href;
+    let text = '';
+    
+    // 1. Google Docs Detection
+    if (hostname === 'docs.google.com') {
+        console.log('Extraction: Google Docs');
+        const paragraphs = document.querySelectorAll('.kix-paragraphrenderer');
+        if (paragraphs.length > 0) {
+            paragraphs.forEach(p => {
+                const content = p.textContent.trim();
+                if (content && content.length > 0) {
+                    text += content + '\n\n';
+                }
+            });
+            if (text.trim().length > 0) {
+                return cleanText(text);
+            }
+        }
+        const content = document.querySelector('.kix-page-content');
+        if (content && content.textContent.trim().length > 0) {
+             text = content.textContent;
+        }
+    }
+    
+    // 2. PDF Viewer Detection
+    else if (url.endsWith('.pdf') || document.querySelector('.textLayer')) {
+        console.log('Extraction: PDF Viewer');
+        if (window.pdfProcessor && typeof window.pdfProcessor.extractText === 'function') {
+            text = window.pdfProcessor.extractText();
+        } else {
+            const textLayers = document.querySelectorAll('.textLayer');
+            textLayers.forEach(layer => {
+                text += layer.textContent + '\n\n';
+            });
+        }
+    }
+
+    // 3. Word/Office Online Detection (Generic Approach)
+    else if (hostname.includes('office.com') || hostname.includes('sharepoint.com')) {
+        console.log('Extraction: Office/Word Online');
+        const editorContent = document.querySelector('[role="textbox"], [contenteditable="true"], .WACContainer');
+        if (editorContent) {
+            text = editorContent.innerText;
+        }
+    }
+    
+    // 4. Standard Web Page / Fallback
+    else {
+        console.log('Extraction: Standard Web Page');
+        const selectors = ['article', 'main', '[role="main"]', '.content', '#content', '.post-content'];
+        for (const selector of selectors) {
+            const element = document.querySelector(selector);
+            if (element && element.innerText.trim().length > 100) {
+                text = element.innerText;
+                break;
+            }
+        }
+        if (!text) {
+             text = document.body.innerText;
+        }
+    }
+    
+    return cleanText(text);
+}
+
+function cleanText(text) {
+    return text
+        .replace(/\s+/g, ' ')
+        .replace(/[\r\n]+/g, ' ')
+        .replace(/\s+([.,!?;:])/g, '$1')
+        .trim();
+}
+
+function applySettingsToPage(settings) {
+    if (settings.dyslexiaFont) document.body.style.fontFamily = 'OpenDyslexic, "Comic Sans MS", sans-serif';
+    if (settings.textSize) document.body.style.fontSize = settings.textSize + 'px';
+    if (settings.highContrast) document.body.style.filter = 'contrast(1.5)';
+}
+
+function displayInsightsOverlay(insights, sessionCount) {
+    const overlay = createOverlay('insights-overlay', '📊 Your Learning Insights');
+    overlay.querySelector('.chromeai-modal-body').innerHTML = `
+        <div style="padding: 20px;">
+            <div style="background: #e3f2fd; padding: 12px; border-radius: 8px; margin-bottom: 16px;">
+                <strong>Sessions Analyzed:</strong> ${sessionCount}
+            </div>
+            <div style="white-space: pre-wrap; line-height: 1.6;">${insights}</div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+}
+
+// FIX: New function to apply/remove accessibility profiles on the content page
+function applyProfileStyles(profileName) {
+    const body = document.body;
+    
+    // 1. Reset all profile classes and Focus Mode
+    body.classList.remove(
+        'accessibility-dyslexia', 
+        'accessibility-adhd', 
+        'accessibility-visual_impairment', 
+        'accessibility-non_native',
+        'chromeai-focus-mode' // Ensure Focus Mode is off if a profile is selected
+    );
+
+    if (profileName) {
+        const className = `accessibility-${profileName}`;
+        body.classList.add(className);
+        console.log(`✅ Applied profile class: ${className}`);
+    } else {
+        console.log('✅ Removed all accessibility profile classes.');
+    }
+}
+
+console.log('✅ ChromeAI Plus content script ready');
+})();
