@@ -13,160 +13,120 @@
             <h1 class="title">ChromeAI Plus</h1>
             <p class="tagline">AI-Powered Accessibility Assistant</p>
         </header>
-        
-        <!-- Mode Toggle -->
-        <section class="mode-toggle">
-            <label class="toggle-label">
-                <input type="checkbox" id="accessibility-mode-toggle">
-                <span class="toggle-text">Enable Accessibility Mode</span>
-            </label>
-        </section>
-        
-        <!-- Accessibility Profile -->
-        <section class="profile-section" id="profile-section" style="display: none;">
-            <h2>Select Your Profile</h2>
-            <div class="profile-grid">
-                <button class="profile-btn" data-profile="dyslexia">
-                    <span class="profile-icon">📖</span>
-                    <span class="profile-name">Dyslexia</span>
-                </button>
-                <button class="profile-btn" data-profile="adhd">
-                    <span class="profile-icon">🎯</span>
-                    <span class="profile-name">ADHD</span>
-                </button>
-                <button class="profile-btn" data-profile="visual_impairment">
-                    <span class="profile-icon">👁️</span>
-                    <span class="profile-name">Visual</span>
-                </button>
-                <button class="profile-btn" data-profile="non_native">
-                    <span class="profile-icon">🌐</span>
-                    <span class="profile-name">Language</span>
-                </button>
-            </div>
-            <div id="current-profile" class="current-profile"></div>
-        </section>
-        
-        <!-- Main Features -->
-        <section class="features-section">
-            <h2>AI Features</h2>
-            <div class="features-grid">
-                <!-- General Features -->
-                <button class="feature-btn" id="prompt-btn">
-                    <span class="icon">💭</span>
-                    <div class="feature-info">
-                        <span class="feature-name">Prompt API</span>
-                        <span class="feature-desc">AI conversations</span>
-                    </div>
-                </button>
+
+        <section class="auth-section" id="auth-section">
+            <h2>Account Access</h2>
+            <div id="auth-form-container">
+                <input type="email" id="auth-email" placeholder="Email" required style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px;">
+                <input type="password" id="auth-password" placeholder="Password" required style="width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 5px;">
                 
-                <button class="feature-btn" id="proofread-btn">
-                    <span class="icon">🔤</span>
-                    <div class="feature-info">
-                        <span class="feature-name">Proofreader</span>
-                        <span class="feature-desc">Grammar check</span>
-                    </div>
-                </button>
-                
-                <button class="feature-btn" id="summarize-btn">
-                    <span class="icon">📄</span>
-                    <div class="feature-info">
-                        <span class="feature-name">Summarizer</span>
-                        <span class="feature-desc">Condense content</span>
-                    </div>
-                </button>
-                
-                <button class="feature-btn" id="translate-btn">
-                    <span class="icon">🌐</span>
-                    <div class="feature-info">
-                        <span class="feature-name">Translator</span>
-                        <span class="feature-desc">Multi-language</span>
-                    </div>
-                </button>
-                
-                <!-- Multimodal Features -->
-                <button class="feature-btn feature-new" id="screenshot-btn">
-                    <span class="icon">📸</span>
-                    <div class="feature-info">
-                        <span class="feature-name">Screenshot AI</span>
-                        <span class="feature-desc">Analyze images</span>
-                        <span class="badge">NEW</span>
-                    </div>
-                </button>
-                
-                <button class="feature-btn feature-new" id="ocr-translate-btn">
-                    <span class="icon">🖼️</span>
-                    <div class="feature-info">
-                        <span class="feature-name">OCR Translate</span>
-                        <span class="feature-desc">Extract & translate</span>
-                        <span class="badge">NEW</span>
-                    </div>
-                </button>
-                
-                <!-- Accessibility Features -->
-                <button class="feature-btn" id="simplify-btn">
-                    <span class="icon">📝</span>
-                    <div class="feature-info">
-                        <span class="feature-name">Simplify</span>
-                        <span class="feature-desc">Easy reading</span>
-                    </div>
-                </button>
-                
-                <button class="feature-btn feature-star" id="voice-reader-btn">
-                    <span class="icon">🔊</span>
-                    <div class="feature-info">
-                        <span class="feature-name">Voice Reader</span>
-                        <span class="feature-desc">Intelligent TTS</span>
-                        <span class="badge-star">★</span>
-                    </div>
-                </button>
-                
-                <button class="feature-btn" id="focus-mode-btn">
-                    <span class="icon">🎯</span>
-                    <div class="feature-info">
-                        <span class="feature-name">Focus Mode</span>
-                        <span class="feature-desc">Distraction-free</span>
-                    </div>
-                </button>
-                
-                <button class="feature-btn" id="insights-btn">
-                    <span class="icon">📊</span>
-                    <div class="feature-info">
-                        <span class="feature-name">Insights</span>
-                        <span class="feature-desc">Usage analytics</span>
-                    </div>
-                </button>
+                <button id="login-btn" style="width: 100%; padding: 12px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">Log In</button>
+                <button id="register-btn" style="width: 100%; padding: 12px; background: #764ba2; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; margin-top: 8px;">Register</button>
+                <p id="auth-message" style="margin-top: 10px; font-size: 12px; color: #f44336; text-align: center;"></p>
             </div>
         </section>
-        
-        <!-- Quick Settings -->
-        <section class="quick-settings">
-            <details>
-                <summary>⚙️ Quick Settings</summary>
-                <div class="settings-content">
-                    <label>
-                        <input type="checkbox" id="dyslexia-font"> 
-                        Dyslexia-Friendly Font
-                    </label>
-                    <label>
-                        <input type="checkbox" id="high-contrast"> 
-                        High Contrast Mode
-                    </label>
-                    <label>
-                        <input type="checkbox" id="reduce-motion"> 
-                        Reduce Motion
-                    </label>
-                    <label>
-                        Text Size:
-                        <input type="range" id="text-size" min="12" max="24" value="16">
-                        <span id="text-size-value">16px</span>
-                    </label>
+
+        <div id="main-content" style="display: none;">
+            <section class="mode-toggle">
+                <label class="toggle-label">
+                    <input type="checkbox" id="accessibility-mode-toggle">
+                    <span class="toggle-text">Enable Accessibility Mode</span>
+                </label>
+            </section>
+            
+            <section class="profile-section" id="profile-section" style="display: none;">
+                <h2>Select Your Profile</h2>
+                <div class="profile-grid">
+                    <button class="profile-btn" data-profile="dyslexia">
+                        <span class="profile-icon">📖</span>
+                        <span class="profile-name">Dyslexia</span>
+                    </button>
+                    <button class="profile-btn" data-profile="adhd">
+                        <span class="profile-icon">🎯</span>
+                        <span class="profile-name">ADHD</span>
+                    </button>
+                    <button class="profile-btn" data-profile="visual_impairment">
+                        <span class="profile-icon">👁️</span>
+                        <span class="profile-name">Visual</span>
+                    </button>
+                    <button class="profile-btn" data-profile="non_native">
+                        <span class="profile-icon">🌐</span>
+                        <span class="profile-name">Language</span>
+                    </button>
                 </div>
-            </details>
-        </section>
+                <div id="current-profile" class="current-profile"></div>
+            </section>
+            
+            <section class="features-section">
+                <h2>AI Features</h2>
+                <div class="features-grid">
+                    <button class="feature-btn" id="prompt-btn">
+                        <span class="icon">💭</span>
+                        <div class="feature-info"><span class="feature-name">Prompt API</span><span class="feature-desc">AI conversations</span></div>
+                    </button>
+                    <button class="feature-btn" id="proofread-btn">
+                        <span class="icon">🔤</span>
+                        <div class="feature-info"><span class="feature-name">Proofreader</span><span class="feature-desc">Grammar check</span></div>
+                    </button>
+                    <button class="feature-btn" id="summarize-btn">
+                        <span class="icon">📄</span>
+                        <div class="feature-info"><span class="feature-name">Summarizer</span><span class="feature-desc">Condense content</span></div>
+                    </button>
+                    <button class="feature-btn" id="translate-btn">
+                        <span class="icon">🌐</span>
+                        <div class="feature-info"><span class="feature-name">Translator</span><span class="feature-desc">Multi-language</span></div>
+                    </button>
+                    <button class="feature-btn feature-new" id="screenshot-btn">
+                        <span class="icon">📸</span>
+                        <div class="feature-info"><span class="feature-name">Screenshot AI</span><span class="feature-desc">Analyze images</span><span class="badge">NEW</span></div>
+                    </button>
+                    <button class="feature-btn feature-new" id="ocr-translate-btn">
+                        <span class="icon">🖼️</span>
+                        <div class="feature-info"><span class="feature-name">OCR Translate</span><span class="feature-desc">Extract & translate</span><span class="badge">NEW</span></div>
+                    </button>
+                    <button class="feature-btn" id="simplify-btn">
+                        <span class="icon">📝</span>
+                        <div class="feature-info"><span class="feature-name">Simplify</span><span class="feature-desc">Easy reading</span></div>
+                    </button>
+                    <button class="feature-btn feature-star" id="voice-reader-btn">
+                        <span class="icon">🔊</span>
+                        <div class="feature-info"><span class="feature-name">Voice Reader</span><span class="feature-desc">Intelligent TTS</span><span class="badge-star">★</span></div>
+                    </button>
+                    <button class="feature-btn" id="insights-btn">
+                        <span class="icon">📊</span>
+                        <div class="feature-info"><span class="feature-name">Insights</span><span class="feature-desc">Usage analytics</span></div>
+                    </button>
+                </div>
+            </section>
+            
+            <section class="quick-settings">
+                <details>
+                    <summary>⚙️ Quick Settings</summary>
+                    <div class="settings-content">
+                        <label>
+                            <input type="checkbox" id="dyslexia-font"> Dyslexia-Friendly Font
+                        </label>
+                        <label>
+                            <input type="checkbox" id="high-contrast"> High Contrast Mode
+                        </label>
+                        <label>
+                            <input type="checkbox" id="reduce-motion"> Reduce Motion
+                        </label>
+                        <label>
+                            Text Size:
+                            <input type="range" id="text-size" min="12" max="24" value="16">
+                            <span id="text-size-value">16px</span>
+                        </label>
+                    </div>
+                </details>
+            </section>
+            
+            <button id="logout-btn" style="width: 100%; padding: 10px; background: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; margin-top: 10px;">Log Out</button>
+
+        </div>
         
         <div class="status" id="status"></div>
         
-        <!-- Keyboard Shortcuts -->
         <section class="shortcuts">
             <details>
                 <summary>⌨️ Keyboard Shortcuts</summary>
@@ -200,4 +160,4 @@
     <script src="config.js"></script>
     <script src="popup.js"></script>
 </body>
-</html>
+</html> 

@@ -1,6 +1,6 @@
 let currentProfile = null;
 let accessibilityMode = false;
-let userId = null;
+let userId = null; 
 
 document.addEventListener('DOMContentLoaded', async () => {
     await loadUserSettings();
@@ -42,24 +42,195 @@ async function checkBackendStatus() {
 async function loadUserSettings() {
     const result = await chrome.storage.local.get(['userId', 'accessibilityProfile', 'settings']);
     
-    if (!result.userId) {
-        userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-        await chrome.storage.local.set({ userId });
-    } else {
+    if (result.userId && result.userId !== 'anonymous') {
         userId = result.userId;
+        showMainContent();
+        
+        if (userId) {
+            await loadProfileFromBackend(userId);
+        }
+        
+    } else {
+        showAuthSection();
+        return;
     }
     
-    if (result.accessibilityProfile) {
-        currentProfile = result.accessibilityProfile;
+    // Load Accessibility Profile status
+    if (currentProfile) {
         accessibilityMode = true;
         document.getElementById('accessibility-mode-toggle').checked = true;
-        document.getElementById('profile-section').style.display = 'block';
         updateCurrentProfile();
+    } else {
+        currentProfile = null;
+        accessibilityMode = false;
+        document.getElementById('accessibility-mode-toggle').checked = false;
     }
+
+    // CRITICAL FIX 1: Explicitly hide the profile selection grid to restore the default look
+    document.getElementById('profile-section').style.display = 'none';
     
+    // CRITICAL FIX 2: Ensure no accessibility style is applied to the popup body initially
+    applyAccessibilityStylesToPopup(null); 
+
+    // Load Quick Settings
     if (result.settings) {
         applySettings(result.settings);
     }
+}
+
+function showAuthSection() {
+    document.getElementById('auth-section').style.display = 'block';
+    document.getElementById('main-content').style.display = 'none';
+}
+
+function showMainContent() {
+    document.getElementById('auth-section').style.display = 'none';
+    document.getElementById('main-content').style.display = 'block';
+}
+
+function setupEventListeners() {
+    // --- Auth Listeners ---
+    document.getElementById('login-btn').addEventListener('click', () => handleAuth('login'));
+    document.getElementById('register-btn').addEventListener('click', () => handleAuth('register'));
+    document.getElementById('logout-btn')?.addEventListener('click', () => logoutUser());
+    
+    // --- Accessibility Listeners ---
+    document.getElementById('accessibility-mode-toggle').addEventListener('change', (e) => {
+        accessibilityMode = e.target.checked;
+        document.getElementById('profile-section').style.display = accessibilityMode ? 'block' : 'none';
+        
+        if (!accessibilityMode) {
+            currentProfile = null;
+            updateCurrentProfile();
+            applyAccessibilityStylesToPopup(null); // Reset all styles when OFF
+        } else if (currentProfile) {
+            // If profile is enabled AND one is selected (from memory/storage)
+            updateCurrentProfile(); // Re-sends the active profile to the content script
+            applyAccessibilityStylesToPopup(currentProfile);
+        }
+    });
+    
+    document.querySelectorAll('.profile-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            if (!userId || userId === 'anonymous') {
+                setStatus('Please log in to save your profile.', 'warning');
+                return;
+            }
+            const profile = btn.dataset.profile;
+            currentProfile = profile;
+            
+            document.querySelectorAll('.profile-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            updateCurrentProfile(); // FIX: Now calls the function that sends the message
+            await chrome.storage.local.set({ accessibilityProfile: profile });
+            await saveProfileToBackend(profile); 
+            
+            // CRITICAL: Apply the new style only on selection
+            applyAccessibilityStylesToPopup(profile);
+            
+            setStatus('Profile saved: ' + profile, 'success');
+        });
+    });
+    
+    // --- Feature Listeners (All unchanged) ---
+    document.getElementById('prompt-btn').addEventListener('click', () => activateFeature('PROMPT'));
+    document.getElementById('proofread-btn').addEventListener('click', () => activateFeature('PROOFREADER'));
+    document.getElementById('summarize-btn').addEventListener('click', () => activateFeature('SUMMARIZER'));
+    document.getElementById('translate-btn').addEventListener('click', () => activateFeature('TRANSLATOR'));
+    document.getElementById('screenshot-btn').addEventListener('click', () => activateFeature('SCREENSHOT'));
+    document.getElementById('ocr-translate-btn').addEventListener('click', () => activateFeature('OCR_TRANSLATE'));
+    document.getElementById('simplify-btn').addEventListener('click', () => activateFeature('SIMPLIFY'));
+    document.getElementById('voice-reader-btn').addEventListener('click', () => activateFeature('VOICE_READER'));
+    // Removed: document.getElementById('focus-mode-btn').addEventListener('click', () => activateFeature('FOCUS_MODE'));
+    document.getElementById('insights-btn').addEventListener('click', () => showInsights());
+    
+    // --- Quick Settings Listeners (Unchanged) ---
+    document.getElementById('dyslexia-font').addEventListener('change', (e) => {
+        updateSettings({ dyslexiaFont: e.target.checked });
+    });
+    document.getElementById('high-contrast').addEventListener('change', (e) => {
+        updateSettings({ highContrast: e.target.checked });
+    });
+    document.getElementById('reduce-motion').addEventListener('change', (e) => {
+        updateSettings({ reduceMotion: e.target.checked });
+    });
+    document.getElementById('text-size').addEventListener('input', (e) => {
+        const size = e.target.value;
+        document.getElementById('text-size-value').textContent = size + 'px';
+        updateSettings({ textSize: size });
+    });
+}
+
+function getAuthCredentials() {
+    const email = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value.trim();
+    return { email, password };
+}
+
+async function handleAuth(action) {
+    const { email, password } = getAuthCredentials();
+    const messageEl = document.getElementById('auth-message');
+    messageEl.textContent = '';
+
+    if (!email || !password) {
+        messageEl.textContent = 'Please enter both email and password.';
+        return;
+    }
+
+    const endpoint = action === 'login' ? 'login' : 'register';
+    const button = document.getElementById(`${action}-btn`);
+    button.disabled = true;
+    messageEl.textContent = 'Processing...';
+
+    try {
+        const response = await fetch(`${BACKEND_URL}/api/auth/${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            userId = data.userId; 
+            await chrome.storage.local.set({ userId: userId });
+            
+            await loadProfileFromBackend(userId); 
+            
+            showMainContent();
+            
+            // CRITICAL FIX: Explicitly hide the profile section upon successful login/register
+            document.getElementById('profile-section').style.display = 'none';
+            applyAccessibilityStylesToPopup(null); // Ensure clean UI on successful login
+            
+            setStatus(`Welcome, ${userId}!`, 'success');
+        } else {
+            messageEl.textContent = data.error || `Authentication failed for ${action}.`;
+        }
+    } catch (error) {
+        messageEl.textContent = 'Network error. Is the Flask backend running?';
+        console.error('Auth network error:', error);
+    } finally {
+        button.disabled = false;
+    }
+}
+
+async function logoutUser() {
+    userId = 'anonymous';
+    currentProfile = null;
+    accessibilityMode = false;
+    
+    await chrome.storage.local.set({ userId: 'anonymous', accessibilityProfile: null });
+    
+    // Reset UI
+    document.getElementById('accessibility-mode-toggle').checked = false;
+    document.getElementById('profile-section').style.display = 'none';
+    
+    applyAccessibilityStylesToPopup(null); // Ensure styles are removed on logout
+    applyProfileToContent(null); // FIX: Ensure styles are removed from the content page
+    
+    showAuthSection();
+    setStatus('Logged out successfully.', 'info');
 }
 
 function applySettings(settings) {
@@ -72,119 +243,15 @@ function applySettings(settings) {
     }
 }
 
-function setupEventListeners() {
-    document.getElementById('accessibility-mode-toggle').addEventListener('change', (e) => {
-        accessibilityMode = e.target.checked;
-        document.getElementById('profile-section').style.display = accessibilityMode ? 'block' : 'none';
-        if (!accessibilityMode) {
-            currentProfile = null;
-            updateCurrentProfile();
-        }
-    });
-    
-    document.querySelectorAll('.profile-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            const profile = btn.dataset.profile;
-            currentProfile = profile;
-            
-            document.querySelectorAll('.profile-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            
-            updateCurrentProfile();
-            await chrome.storage.local.set({ accessibilityProfile: profile });
-            setStatus('✅ Profile saved: ' + profile, 'success');
-        });
-    });
-    
-    // Feature buttons
-    document.getElementById('prompt-btn').addEventListener('click', () => activateFeature('PROMPT'));
-    document.getElementById('proofread-btn').addEventListener('click', () => activateFeature('PROOFREADER'));
-    document.getElementById('summarize-btn').addEventListener('click', () => activateFeature('SUMMARIZER'));
-    document.getElementById('translate-btn').addEventListener('click', () => activateFeature('TRANSLATOR'));
-    document.getElementById('screenshot-btn').addEventListener('click', () => activateFeature('SCREENSHOT'));
-    document.getElementById('ocr-translate-btn').addEventListener('click', () => activateFeature('OCR_TRANSLATE'));
-    document.getElementById('simplify-btn').addEventListener('click', () => activateFeature('SIMPLIFY'));
-    document.getElementById('voice-reader-btn').addEventListener('click', () => activateFeature('VOICE_READER'));
-    document.getElementById('focus-mode-btn').addEventListener('click', () => activateFeature('FOCUS_MODE'));
-    document.getElementById('insights-btn').addEventListener('click', () => showInsights());
-    
-    // Settings
-    document.getElementById('dyslexia-font').addEventListener('change', (e) => {
-        updateSettings({ dyslexiaFont: e.target.checked });
-    });
-    
-    document.getElementById('high-contrast').addEventListener('change', (e) => {
-        updateSettings({ highContrast: e.target.checked });
-    });
-    
-    document.getElementById('reduce-motion').addEventListener('change', (e) => {
-        updateSettings({ reduceMotion: e.target.checked });
-    });
-    
-    document.getElementById('text-size').addEventListener('input', (e) => {
-        const size = e.target.value;
-        document.getElementById('text-size-value').textContent = size + 'px';
-        updateSettings({ textSize: size });
-    });
-}
-
-async function sendMessageToTab(tabId, message) {
-    return new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-            reject(new Error('Message timeout'));
-        }, 5000);
-
-        chrome.tabs.sendMessage(tabId, message, (response) => {
-            clearTimeout(timeout);
-            if (chrome.runtime.lastError) {
-                reject(chrome.runtime.lastError);
-            } else {
-                resolve(response);
-            }
-        });
-    });
-}
-
-async function ensureContentScriptInjected(tabId) {
-    try {
-        // First try to ping existing content script
-        await chrome.tabs.sendMessage(tabId, { type: 'PING' });
-        return true; // Content script exists and responded
-    } catch (error) {
-        console.log('🔄 Content script not found, injecting...');
-        try {
-            await chrome.scripting.executeScript({
-                target: { tabId: tabId },
-                files: [
-                    'config.js',
-                    'utils/wcag-checker.js',
-                    'utils/profile-sync.js',
-                    'accessibility-engine.js',
-                    'reading-assistant.js',
-                    'voice-reader.js',
-                    'content.js'
-                ]
-            });
-            
-            // Wait for content script to initialize
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            // Verify injection
-            await chrome.tabs.sendMessage(tabId, { type: 'PING' });
-            return true;
-        } catch (injectionError) {
-            console.error('❌ Script injection failed:', injectionError);
-            return false;
-        }
-    }
-}
-
 async function activateFeature(feature) {
     console.log('🎯 Activating feature:', feature);
     setStatus(`Activating ${feature}...`, 'info');
     
     try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        await chrome.tabs.sendMessage(tab.id, {
+            type: `ACTIVATE_${feature}`,
+            data: { profile: currentProfile, accessibilityMode, userId }
+        });
         
         if (!tab?.id) {
             throw new Error('No active tab found');
@@ -250,31 +317,16 @@ async function showInsights() {
         if (data.success) {
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
             
-            chrome.tabs.sendMessage(tab.id, {
-                type: 'SHOW_INSIGHTS',
+            // FIX: Use sendMessage to send data to the content script for display
+            await chrome.tabs.sendMessage(tab.id, {
+                type: 'SHOW_INSIGHTS', // The content script is already listening for this
                 insights: data.insights,
                 sessionCount: data.session_count
-            }, (response) => {
-                if (chrome.runtime.lastError) {
-                    // Try to inject and retry
-                    chrome.scripting.executeScript({
-                        target: { tabId: tab.id },
-                        files: ['content.js']
-                    }).then(() => {
-                        setTimeout(() => {
-                            chrome.tabs.sendMessage(tab.id, {
-                                type: 'SHOW_INSIGHTS',
-                                insights: data.insights,
-                                sessionCount: data.session_count
-                            });
-                        }, 500);
-                    });
-                }
             });
             
             setStatus('✅ Insights loaded', 'success');
         } else {
-            setStatus('❌ No insights available', 'error');
+            setStatus('Failed to load insights: ' + (data.error || 'Unknown error from backend'), 'error');
         }
     } catch (error) {
         setStatus('❌ Backend required for insights', 'error');
@@ -297,10 +349,48 @@ function updateCurrentProfile() {
         document.querySelectorAll('.profile-btn').forEach(btn => {
             if (btn.dataset.profile === currentProfile) {
                 btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
             }
         });
+        
     } else {
         profileEl.style.display = 'none';
+        document.querySelectorAll('.profile-btn').forEach(btn => btn.classList.remove('active'));
+    }
+    
+    // FIX: Send the currently active profile (or null) to the content script
+    applyProfileToContent(currentProfile); 
+}
+
+// FIX: New function to communicate the profile change to the active tab
+async function applyProfileToContent(profileName) {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    try {
+        await chrome.tabs.sendMessage(tab.id, {
+            type: 'APPLY_PROFILE',
+            profile: profileName 
+        });
+    } catch (error) {
+        // This catches errors if the content script hasn't loaded yet
+        console.warn('Could not send APPLY_PROFILE message:', error.message);
+    }
+}
+
+
+async function saveProfileToBackend(profile) {
+    try {
+        await fetch(`${BACKEND_URL}/api/accessibility/profile/save`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userId,
+                profile: { mode: profile, timestamp: new Date().toISOString() }
+            })
+        });
+    } catch (error) {
+        console.error('Failed to save profile:', error);
     }
 }
 
@@ -344,5 +434,52 @@ function setStatus(message, type = '') {
             statusEl.textContent = '';
             statusEl.className = 'status';
         }, 4000);
+    }
+}
+
+async function loadProfileFromBackend(user_id) {
+    try {
+        const response = await fetch(`${BACKEND_URL}/api/accessibility/profile/get/${user_id}`);
+        const data = await response.json();
+        
+        if (data.success && data.profile && data.profile.mode) {
+            currentProfile = data.profile.mode;
+            accessibilityMode = true;
+            await chrome.storage.local.set({ accessibilityProfile: currentProfile });
+            document.getElementById('accessibility-mode-toggle').checked = true;
+            updateCurrentProfile();
+            setStatus('Profile loaded from cloud.', 'info');
+        } else {
+            currentProfile = null;
+            accessibilityMode = false;
+        }
+        
+        // Final UI cleanup: apply style *only* if the mode is checked.
+        if (accessibilityMode) {
+            applyAccessibilityStylesToPopup(currentProfile);
+        } else {
+            applyAccessibilityStylesToPopup(null); 
+        }
+    } catch (error) {
+        console.error('Failed to load profile from backend:', error);
+        applyAccessibilityStylesToPopup(null); 
+    }
+}
+
+// CRITICAL FIX: Function to apply/remove accessibility styles locally in the popup
+function applyAccessibilityStylesToPopup(profileName) {
+    const body = document.body;
+    
+    // 1. Reset all styles first
+    body.style.fontFamily = ''; 
+    body.style.lineHeight = '';
+    body.style.letterSpacing = '';
+    
+    // 2. Clear all conflicting classes (optional, but good practice)
+    body.classList.remove('accessibility-dyslexia', 'accessibility-adhd', 'accessibility-visual_impairment', 'accessibility-non_native');
+
+    if (profileName === 'dyslexia') {
+        // If Dyslexia is enabled, apply the custom font to the popup body.
+        body.style.fontFamily = "'OpenDyslexic', 'Comic Sans MS', sans-serif";
     }
 }
