@@ -864,6 +864,11 @@ async function activateSimplify() {
             showNotification('✓ Copied to clipboard', 'success');
         };
         
+        document.getElementById('summary-result').innerHTML = `
+            <div style="background: #e8f5e9; padding: 12px; border-radius: 8px;">
+                <div style="white-space: pre-wrap; line-height: 1.6;">${result}</div>
+            </div>
+        `;
     } catch (error) {
         document.getElementById('simplify-result').innerHTML = `
             <div style="padding: 12px; background: #ffebee; border-radius: 8px; color: #c62828;">
@@ -871,6 +876,8 @@ async function activateSimplify() {
             </div>
         `;
     }
+    
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
 }
 
 async function activateVoiceReader() {
