@@ -11,17 +11,115 @@
     margin-bottom: 1.5em !important;
 }
 
-/* ADHD Mode (UPDATED for stricter focus) */
-.accessibility-adhd {
-    max-width: 800px; 
-    margin: 0 auto; 
-    padding: 15px; 
-    border: 1px solid #764ba2; 
-    background-color: #f7f7f7; 
+/* ADHD Mode - Enhanced Focus */
+html.accessibility-adhd,
+.chromeai-adhd-enabled {
+    background-color: #f7f7f7 !important;
 }
 
-.accessibility-adhd p {
-    margin-bottom: 1em;
+/* Safe: Hide only obvious ads and distractions */
+html.accessibility-adhd [id*="ad"],
+html.accessibility-adhd [class*="ad"],
+html.accessibility-adhd [id*="Ad"],
+html.accessibility-adhd [class*="Ad"],
+html.accessibility-adhd iframe[src*="ads"],
+html.accessibility-adhd [class*="banner"],
+html.accessibility-adhd [id*="banner"],
+html.accessibility-adhd [class*="popup"],
+html.accessibility-adhd [id*="popup"],
+html.accessibility-adhd [class*="notification"],
+.chromeai-adhd-enabled [id*="ad"],
+.chromeai-adhd-enabled [class*="ad"],
+.chromeai-adhd-enabled [id*="Ad"],
+.chromeai-adhd-enabled [class*="Ad"],
+.chromeai-adhd-enabled iframe[src*="ads"],
+.chromeai-adhd-enabled [class*="banner"],
+.chromeai-adhd-enabled [id*="banner"],
+.chromeai-adhd-enabled [class*="popup"],
+.chromeai-adhd-enabled [id*="popup"],
+.chromeai-adhd-enabled [class*="notification"] {
+    display: none !important;
+}
+
+/* Safe: Style the main content */
+html.accessibility-adhd main,
+html.accessibility-adhd article,
+html.accessibility-adhd [role="main"],
+html.accessibility-adhd #content,
+html.accessibility-adhd .content,
+html.accessibility-adhd .post-content,
+.chromeai-adhd-enabled main,
+.chromeai-adhd-enabled article,
+.chromeai-adhd-enabled [role="main"] {
+    max-width: 700px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    padding: 20px !important;
+    background: white !important;
+    box-shadow: 0 0 20px rgba(0,0,0,0.1) !important;
+    border-radius: 8px !important;
+}
+
+/* Reading line feature */
+.chromeai-reading-line {
+    position: fixed;
+    left: 10%;
+    right: 10%;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, #4285f4, transparent);
+    background: #4285f4;
+    opacity: 0.6;
+    pointer-events: none;
+    z-index: 9999;
+    border-radius: 2px;
+    box-shadow: 0 0 10px rgba(66, 133, 244, 0.5);
+    transition: top 0.05s ease;
+}
+
+/* Ensure content within main areas is visible */
+html.accessibility-adhd main *,
+html.accessibility-adhd article *,
+html.accessibility-adhd [role="main"] *,
+html.accessibility-adhd #content *,
+html.accessibility-adhd .content *,
+html.accessibility-adhd .post-content * {
+    display: revert !important;
+}
+
+/* Typography improvements for readability */
+html.accessibility-adhd p,
+html.accessibility-adhd li,
+html.accessibility-adhd h1,
+html.accessibility-adhd h2,
+html.accessibility-adhd h3,
+html.accessibility-adhd h4,
+html.accessibility-adhd h5,
+html.accessibility-adhd h6 {
+    color: #333333 !important;
+    line-height: 1.8 !important;
+    margin-bottom: 1.2em !important;
+}
+
+/* Reduce distractions */
+html.accessibility-adhd aside,
+html.accessibility-adhd .sidebar,
+html.accessibility-adhd .advertisement,
+html.accessibility-adhd .social-share,
+html.accessibility-adhd .related-content,
+html.accessibility-adhd nav:not(.main-navigation),
+html.accessibility-adhd footer {
+    opacity: 0.1 !important;
+    transition: opacity 0.3s !important;
+}
+
+html.accessibility-adhd aside:hover,
+html.accessibility-adhd .sidebar:hover,
+html.accessibility-adhd .advertisement:hover,
+html.accessibility-adhd .social-share:hover,
+html.accessibility-adhd .related-content:hover,
+html.accessibility-adhd nav:not(.main-navigation):hover,
+html.accessibility-adhd footer:hover {
+    opacity: 1 !important;
 }
 
 /* Visual Impairment Mode */
