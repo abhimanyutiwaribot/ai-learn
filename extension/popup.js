@@ -1,3 +1,4 @@
+const BACKEND_URL = 'http://localhost:5000';
 let currentProfile = null;
 let accessibilityMode = false;
 let userId = null; 
@@ -5,39 +6,7 @@ let userId = null;
 document.addEventListener('DOMContentLoaded', async () => {
     await loadUserSettings();
     setupEventListeners();
-    checkBackendStatus();
 });
-
-async function checkBackendStatus() {
-    try {
-        const response = await fetch(`${window.CHROMEAI_CONFIG.BACKEND.URL}/health`, {
-            method: 'GET',
-            signal: AbortSignal.timeout(window.CHROMEAI_CONFIG.BACKEND.TIMEOUT)
-        });
-        
-        if (response.ok) {
-            const data = await response.json();
-            if (data.gemini_enabled && data.mongodb_enabled) {
-                setStatus('✅ All systems ready', 'success');
-            } else if (data.gemini_enabled) {
-                setStatus('✅ Backend ready (no MongoDB)', 'success');
-            } else {
-                setStatus('⚠️ Backend running (no Gemini API)', 'warning');
-            }
-        } else {
-            setStatus(`⚠️ Backend error: ${response.status}`, 'warning');
-        }
-    } catch (error) {
-        if (error.name === 'TimeoutError') {
-            setStatus('⚠️ Backend timeout - service may be slow', 'warning');
-        } else if (error.name === 'AbortError') {
-            setStatus('⚠️ Request aborted - please try again', 'warning');
-        } else {
-            setStatus('⚠️ Backend offline - limited features', 'warning');
-        }
-        console.error('Backend check error:', error);
-    }
-}
 
 async function loadUserSettings() {
     const result = await chrome.storage.local.get(['userId', 'accessibilityProfile', 'settings']);
@@ -135,9 +104,9 @@ function setupEventListeners() {
     
     // --- Feature Listeners (All unchanged) ---
     document.getElementById('prompt-btn').addEventListener('click', () => activateFeature('PROMPT'));
-    document.getElementById('proofread-btn').addEventListener('click', () => activateFeature('PROOFREADER'));
-    document.getElementById('summarize-btn').addEventListener('click', () => activateFeature('SUMMARIZER'));
-    document.getElementById('translate-btn').addEventListener('click', () => activateFeature('TRANSLATOR'));
+    document.getElementById('proofread-btn').addEventListener('click', () => activateFeature('PROOFREAD'));
+    document.getElementById('summarize-btn').addEventListener('click', () => activateFeature('SUMMARIZE'));
+    document.getElementById('translate-btn').addEventListener('click', () => activateFeature('TRANSLATE'));
     document.getElementById('screenshot-btn').addEventListener('click', () => activateFeature('SCREENSHOT'));
     document.getElementById('ocr-translate-btn').addEventListener('click', () => activateFeature('OCR_TRANSLATE'));
     document.getElementById('simplify-btn').addEventListener('click', () => activateFeature('SIMPLIFY'));
@@ -244,8 +213,9 @@ function applySettings(settings) {
 }
 
 async function activateFeature(feature) {
-    console.log('🎯 Activating feature:', feature);
-    setStatus(`Activating ${feature}...`, 'info');
+    setStatus(`Activating ${feature}...`, 'success');
+    
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
     try {
         await chrome.tabs.sendMessage(tab.id, {
@@ -253,65 +223,18 @@ async function activateFeature(feature) {
             data: { profile: currentProfile, accessibilityMode, userId }
         });
         
-        if (!tab?.id) {
-            throw new Error('No active tab found');
-        }
-        
-        if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
-            setStatus('❌ Cannot run on Chrome system pages', 'error');
-            return;
-        }
-
-        // Ensure content script is injected
-        const isInjected = await ensureContentScriptInjected(tab.id);
-        if (!isInjected) {
-            throw new Error('Failed to inject content script');
-        }
-
-        const message = {
-            type: `ACTIVATE_${feature}`,
-            data: {
-                profile: currentProfile,
-                accessibilityMode: accessibilityMode,
-                userId: userId
-            }
-        };
-
-        // Send message with retry
-        let retries = 2;
-        while (retries > 0) {
-            try {
-                const response = await sendMessageToTab(tab.id, message);
-                console.log('✅ Feature activated:', response);
-                setStatus('✅ Feature activated!', 'success');
-                return;
-            } catch (error) {
-                retries--;
-                if (retries === 0) {
-                    throw error;
-                }
-                await new Promise(resolve => setTimeout(resolve, 500));
-            }
-        }
+        logFeatureUsage(feature);
+        window.close();
     } catch (error) {
-        console.error('❌ Activation error:', error);
-        setStatus('❌ Error: ' + (error.message || 'Failed to communicate with page'), 'error');
+        setStatus('Error: ' + error.message, 'error');
     }
 }
 
 async function showInsights() {
     try {
-        setStatus('Loading insights...', 'info');
+        setStatus('Loading insights...', 'success');
         
-        const response = await fetch(`${window.CHROMEAI_CONFIG.BACKEND.URL}/api/analytics/insights/${userId}`, {
-            method: 'GET',
-            signal: AbortSignal.timeout(5000)
-        });
-        
-        if (!response.ok) {
-            throw new Error('Backend not available');
-        }
-        
+        const response = await fetch(`${BACKEND_URL}/api/analytics/insights/${userId}`);
         const data = await response.json();
         
         if (data.success) {
@@ -324,13 +247,12 @@ async function showInsights() {
                 sessionCount: data.session_count
             });
             
-            setStatus('✅ Insights loaded', 'success');
+            window.close();
         } else {
             setStatus('Failed to load insights: ' + (data.error || 'Unknown error from backend'), 'error');
         }
     } catch (error) {
-        setStatus('❌ Backend required for insights', 'error');
-        console.error('Insights error:', error);
+        setStatus('Error: ' + error.message, 'error');
     }
 }
 
@@ -400,16 +322,12 @@ async function updateSettings(newSettings) {
     Object.assign(settings, newSettings);
     await chrome.storage.local.set({ settings });
     
-    try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            func: applySettingsToContent,
-            args: [settings]
-        });
-    } catch (e) {
-        console.log('Settings will apply on next page load');
-    }
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: applySettingsToContent,
+        args: [settings]
+    });
 }
 
 function applySettingsToContent(settings) {
@@ -424,16 +342,34 @@ function applySettingsToContent(settings) {
     }
 }
 
+async function logFeatureUsage(feature) {
+    try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        await fetch(`${BACKEND_URL}/api/analytics/session`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userId,
+                documentType: new URL(tab.url).hostname,
+                featuresUsed: [feature],
+                accessibilityMode: currentProfile
+            })
+        });
+    } catch (error) {
+        console.error('Failed to log:', error);
+    }
+}
+
 function setStatus(message, type = '') {
     const statusEl = document.getElementById('status');
     statusEl.textContent = message;
     statusEl.className = 'status ' + type;
     
-    if (type && type !== 'info') {
+    if (type) {
         setTimeout(() => {
             statusEl.textContent = '';
             statusEl.className = 'status';
-        }, 4000);
+        }, 3000);
     }
 }
 

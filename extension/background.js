@@ -31,10 +31,10 @@ function createContextMenus() {
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     const actions = {
-        'translate-selection': { type: 'ACTIVATE_TRANSLATOR', text: info.selectionText },
-        'proofread-selection': { type: 'ACTIVATE_PROOFREADER', text: info.selectionText },
-        'simplify-selection': { type: 'ACTIVATE_SIMPLIFY', text: info.selectionText },
-        'read-aloud-selection': { type: 'ACTIVATE_VOICE_READER', text: info.selectionText }
+        'translate-selection': { type: 'TRANSLATE_SELECTION', text: info.selectionText },
+        'proofread-selection': { type: 'PROOFREAD_SELECTION', text: info.selectionText },
+        'simplify-selection': { type: 'SIMPLIFY_SELECTION', text: info.selectionText },
+        'read-aloud-selection': { type: 'READ_ALOUD_SELECTION', text: info.selectionText }
     };
     
     if (actions[info.menuItemId]) {
@@ -46,8 +46,8 @@ chrome.commands.onCommand.addListener(async (command) => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
     const commandMap = {
-        'simplify-selection': 'ACTIVATE_SIMPLIFY',
-        'read-aloud': 'ACTIVATE_VOICE_READER',
+        'simplify-selection': 'SIMPLIFY_SELECTION',
+        'read-aloud': 'READ_ALOUD_SELECTION',
         'screenshot-analyze': 'ACTIVATE_SCREENSHOT'
     };
     
