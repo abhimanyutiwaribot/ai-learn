@@ -44,8 +44,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true; 
     }
     
-    if (message.type === 'APPLY_PROFILE') { // FIX: New listener for profile activation
-        applyProfileStyles(message.profile);
+    if (message.type === 'APPLY_PROFILE') { // Enhanced profile activation
+        const profile = message.profile;
+        
+        // Remove all existing accessibility classes from both html and body
+        document.documentElement.classList.remove(
+            'accessibility-dyslexia',
+            'accessibility-adhd',
+            'accessibility-visual_impairment',
+            'accessibility-non_native',
+            'chromeai-adhd-enabled'
+        );
+        document.body.classList.remove(
+            'accessibility-dyslexia',
+            'accessibility-adhd',
+            'accessibility-visual_impairment',
+            'accessibility-non_native',
+            'chromeai-adhd-enabled'
+        );
+        
+        // Remove reading line if it exists
+        const existingLine = document.querySelector('.chromeai-reading-line');
+        if (existingLine) {
+            existingLine.remove();
+        }
+        
+        // Apply new profile if one is selected
+        if (profile) {
+            // Apply the class to the html element for better specificity
+            document.documentElement.classList.add(`accessibility-${profile}`);
+            document.documentElement.classList.add('chromeai-adhd-enabled');
+            
+            if (profile === 'adhd') {
+                applyADHDStyles();
+            }
+        }
+        
         sendResponse({ status: 'profile_applied' });
         return false;
     }
@@ -894,12 +928,16 @@ async function activateVoiceReader() {
 function createOverlay(id, title) {
     const overlay = document.createElement('div');
     overlay.id = id;
+    
+    // FIX 1: Add the whitelisting class for ADHD/Focus Mode
+    overlay.classList.add('chromeai-overlay'); 
+    
     // CRITICAL FIX: Use 'top/left/transform' centering for stability
     overlay.style.cssText = `
         position: fixed; 
         top: 50%;
         left: 50%;
-        transform: translate(-55%, -50%); /* Centering magic */
+        transform: translate(-50%, -50%); /* Fix: Changed -55% to -50% for correct centering */
         
         background: rgba(0,0,0,0.6); 
         z-index: 999999;
@@ -1068,6 +1106,103 @@ function applyProfileStyles(profileName) {
     } else {
         console.log('✅ Removed all accessibility profile classes.');
     }
+}
+
+// Enhanced ADHD Mode Implementation
+function applyADHDStyles() {
+    console.log('🔄 Applying ADHD styles...');
+
+    // Test 1: Visual confirmation
+    document.body.style.border = '5px solid red';
+    console.log('✅ Test 1: Body border applied');
+
+    // Test 2: Hide distracting elements
+    hideDistractingElementsGradually();
+
+    // Test 3: Focus main content
+    focusMainContent();
+
+    // Add reading line
+    addReadingLine();
+
+    console.log('🎯 ADHD styles applied');
+}
+
+function hideDistractingElementsGradually() {
+    const safeSelectors = [
+        '[id*="ad"]',
+        '[class*="ad"]',
+        '[id*="Ad"]',
+        '[class*="Ad"]',
+        'iframe[src*="ads"]',
+        '[class*="banner"]',
+        '[id*="banner"]',
+        '[class*="popup"]',
+        '[id*="popup"]',
+        '[class*="notification"]'
+    ];
+
+    let hiddenCount = 0;
+    safeSelectors.forEach(selector => {
+        try {
+            const elements = document.querySelectorAll(selector);
+            elements.forEach(el => {
+                if (el.offsetParent !== null) { // Only if visible
+                    el.style.display = 'none';
+                    hiddenCount++;
+                }
+            });
+        } catch (error) {
+            console.log(`❌ Error hiding ${selector}:`, error);
+        }
+    });
+
+    console.log(`✅ Hid ${hiddenCount} distracting elements`);
+}
+
+function focusMainContent() {
+    const mainSelectors = [
+        'main', 'article', '[role="main"]',
+        '.content', '.main-content', '.post'
+    ];
+
+    for (let selector of mainSelectors) {
+        const element = document.querySelector(selector);
+        if (element) {
+            console.log(`✅ Found main content: ${selector}`);
+
+            // Add a subtle highlight
+            element.style.boxShadow = '0 0 0 2px #4285f4';
+            element.style.transition = 'box-shadow 0.3s ease';
+
+            // Smooth scroll to content
+            setTimeout(() => {
+                element.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+            }, 100);
+
+            break;
+        }
+    }
+}
+
+function addReadingLine() {
+    // Remove any existing reading line
+    const existingLine = document.querySelector('.chromeai-reading-line');
+    if (existingLine) {
+        existingLine.remove();
+    }
+
+    const line = document.createElement('div');
+    line.className = 'chromeai-reading-line';
+    document.body.appendChild(line);
+
+    // Position the line at mouse position
+    document.addEventListener('mousemove', (e) => {
+        line.style.top = `${e.clientY}px`;
+    });
 }
 
 console.log('✅ ChromeAI Plus content script ready');
