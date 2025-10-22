@@ -5,32 +5,33 @@
   "description": "First voice reader that understands what it's reading. AI-powered accessibility for students with learning differences.",
   "permissions": [
     "activeTab",
-    "scripting",
+    "scripting", 
     "storage",
     "contextMenus",
     "notifications",
     "tts",
-    "languageModel"
+    "languageModel",
+    "sidePanel"
   ],
   "optional_permissions": [
     "tabs"
   ],
   "host_permissions": [
-    "https://docs.google.com/*"
-  ],
-  "optional_host_permissions": [
+    "https://docs.google.com/*",
     "<all_urls>"
   ],
   "background": {
     "service_worker": "background.js"
   },
   "action": {
-    "default_popup": "popup.html",
     "default_icon": {
       "16": "assets/icons/icon16.png",
       "48": "assets/icons/icon48.png",
       "128": "assets/icons/icon128.png"
     }
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
   },
   "content_scripts": [
     {
@@ -63,7 +64,10 @@
         "assets/audio/*.mp3",
         "multimodal-handler.js",
         "pdf-processor.js",
-        "proofreader-handler.js"
+        "proofreader-handler.js",
+        "sidepanel.html",
+        "sidepanel.js",
+        "sidepanel.css"
       ],
       "matches": ["<all_urls>"]
     }
@@ -75,12 +79,12 @@
         "mac": "Command+Shift+A"
       }
     },
-    "simplify-selection": {
+    "open-sidepanel": {
       "suggested_key": {
-        "default": "Ctrl+Shift+S",
-        "mac": "Command+Shift+S"
+        "default": "Ctrl+Shift+P",
+        "mac": "Command+Shift+P"
       },
-      "description": "Simplify selected text"
+      "description": "Open Accessibility Side Panel"
     },
     "read-aloud": {
       "suggested_key": {
@@ -89,12 +93,12 @@
       },
       "description": "Read selected text aloud"
     },
-    "screenshot-analyze": {
+    "simplify-selection": {
       "suggested_key": {
-        "default": "Ctrl+Shift+I",
-        "mac": "Command+Shift+I"
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
       },
-      "description": "Analyze screenshot with AI"
+      "description": "Simplify selected text"
     }
   },
   "icons": {
