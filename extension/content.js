@@ -992,6 +992,12 @@ function showNotification(message, type = 'info') {
  * supporting web pages, PDFs, and Google Docs.
  */
 function extractMainContent() {
+    // First check if it's a PDF
+    if (window.pdfProcessor && window.pdfProcessor.isPDF()) {
+        console.log('📄 Extracting PDF content...');
+        return window.pdfProcessor.extractText();
+    }
+    
     const hostname = window.location.hostname;
     const url = window.location.href;
     let text = '';
@@ -1206,4 +1212,17 @@ function addReadingLine() {
 }
 
 console.log('✅ ChromeAI Plus content script ready');
+})();
+
+// Add this to your content script initialization
+(async function initializePDFSupport() {
+    if (window.pdfProcessor && window.pdfProcessor.isPDF()) {
+        console.log('📄 PDF detected, waiting for content load...');
+        const loaded = await window.pdfProcessor.waitForPDFLoad();
+        if (loaded) {
+            console.log('✅ PDF content loaded successfully');
+        } else {
+            console.log('⚠️ PDF content load timeout');
+        }
+    }
 })();

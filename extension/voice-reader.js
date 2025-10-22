@@ -1,10 +1,3 @@
-// Reading Assistant - Helper utilities
-window.readingAssistant = {
-    extractText: function(element) {
-        return element.innerText || element.textContent;
-    }
-};
-
 // ============================================
 // CONFIGURATION
 // ============================================
@@ -18,7 +11,7 @@ const BACKEND_URL = 'http://localhost:5000';
 // ============================================
 // ADVANCED VOICE READER - MULTI-FORMAT SUPPORT
 // ============================================
-(function() {
+
 class VoiceReader {
     constructor() {
         this.synth = window.speechSynthesis;
@@ -30,7 +23,7 @@ class VoiceReader {
         this.volume = 1.0;
         this.selectedVoice = null;
         this.highlightedElement = null;
-        this.readingMode = 'sentence'; // Set new default to 'sentence' for speed
+        this.readingMode = 'automatic';
         this.currentIndex = 0;
         this.contentArray = [];
         this.documentType = 'webpage'; // Track document type
@@ -45,6 +38,12 @@ class VoiceReader {
     // ============================================
     
     detectDocumentType() {
+        if (window.pdfProcessor && window.pdfProcessor.isPDF()) {
+            this.documentType = 'pdf';
+            console.log('📑 Document Type: PDF');
+            return;
+        }
+        
         const hostname = window.location.hostname;
         const url = window.location.href;
         
@@ -69,9 +68,8 @@ class VoiceReader {
             const settings = result.voiceReaderSettings;
             this.readingSpeed = settings.speed || 0.9;
             this.readingPitch = settings.pitch || 1.0;
-            // FIX: Ensure readingMode defaults to one of the new, fast options
-            this.readingMode = settings.mode === 'selection' ? 'selection' : 'sentence'; 
             this.volume = settings.volume || 1.0;
+            this.readingMode = settings.mode || 'automatic';
         }
     }
     
@@ -204,6 +202,8 @@ class VoiceReader {
             <div style="margin-bottom: 16px;">
                 <label style="display: block; font-size: 12px; margin-bottom: 6px; font-weight: 600;">Reading Mode</label>
                 <select id="voice-reader-mode" aria-label="Reading mode" style="width: 100%; padding: 8px; border: none; border-radius: 6px; font-size: 13px;">
+                    <option value="automatic" ${this.readingMode === 'automatic' ? 'selected' : ''}>Automatic (Full)</option>
+                    <option value="paragraph" ${this.readingMode === 'paragraph' ? 'selected' : ''}>Paragraph by Paragraph</option>
                     <option value="sentence" ${this.readingMode === 'sentence' ? 'selected' : ''}>Sentence by Sentence</option>
                     <option value="selection" ${this.readingMode === 'selection' ? 'selected' : ''}>Selected Text Only</option>
                 </select>
@@ -330,16 +330,17 @@ class VoiceReader {
                 return;
             }
             this.contentArray = [selection];
-        } else { 
-            // Default or fallback to 'sentence' mode
-            this.readingMode = 'sentence';
+        } else if (mode === 'sentence') {
             this.contentArray = this.extractSentences();
+        } else if (mode === 'paragraph') {
+            this.contentArray = this.extractParagraphs();
+        } else {
+            this.contentArray = [this.extractMainContent()];
         }
         
         if (this.contentArray.length === 0 || !this.contentArray[0]) {
             this.updateStatus('No content found to read');
             this.announce('No readable content found on this page');
-            this.stop();
             return;
         }
         
@@ -364,12 +365,9 @@ class VoiceReader {
         
         this.speak(text);
         
-        // FIX: The status should reflect the total number of sentences/chunks to read.
-        const totalChunks = this.contentArray.length;
-        const position = totalChunks > 1 ? 
-            `Reading chunk ${this.currentIndex + 1} of ${totalChunks}` : 
-            `Reading ${this.documentType}`;
-            
+        const position = this.readingMode === 'automatic' ? 
+            `Reading ${this.documentType}` : 
+            `Reading ${this.currentIndex + 1} of ${this.contentArray.length}`;
         this.updateStatus(position);
         
         document.getElementById('voice-reader-play').disabled = true;
@@ -396,8 +394,7 @@ class VoiceReader {
         utterance.onend = () => {
             this.removeHighlight();
             
-            // Continue reading the next chunk if content was chunked
-            if (this.contentArray.length > 1) { 
+            if (this.readingMode !== 'automatic') {
                 this.currentIndex++;
                 if (this.currentIndex < this.contentArray.length) {
                     setTimeout(() => this.readCurrent(), 500);
@@ -457,6 +454,8 @@ class VoiceReader {
     }
     
     readNext() {
+        if (this.readingMode === 'automatic') return;
+        
         this.synth.cancel();
         this.currentIndex++;
         if (this.currentIndex >= this.contentArray.length) {
@@ -468,6 +467,8 @@ class VoiceReader {
     }
     
     readPrevious() {
+        if (this.readingMode === 'automatic') return;
+        
         this.synth.cancel();
         this.currentIndex--;
         if (this.currentIndex < 0) {
@@ -483,31 +484,31 @@ class VoiceReader {
     // ============================================
     
     extractMainContent() {
-        // This function now focuses on getting the primary text container quickly, 
-        // leaving the chunking to startReading().
-        
         // 1. Google Docs
         if (this.documentType === 'google-docs') {
-            return this.cleanText(this.extractGoogleDocsContent());
+            console.log('📄 Extracting Google Docs content');
+            return this.extractGoogleDocsContent();
         }
         
         // 2. PDF
         if (this.documentType === 'pdf') {
-            return this.cleanText(this.extractPDFContent());
+            console.log('📑 Extracting PDF content');
+            return this.extractPDFContent();
         }
         
         // 3. Office Online
         if (this.documentType === 'office-online') {
-            return this.cleanText(this.extractOfficeContent());
+            console.log('📝 Extracting Office Online content');
+            return this.extractOfficeContent();
         }
         
         // 4. Regular web pages
+        console.log('🌐 Extracting web page content');
         const selectors = ['article', 'main', '[role="main"]', '.content', '#content', '.post-content'];
         
         for (const selector of selectors) {
             const element = document.querySelector(selector);
             if (element && element.innerText.trim().length > 100) {
-                // Return the clean text of the main element
                 return this.cleanText(element.innerText);
             }
         }
@@ -517,38 +518,63 @@ class VoiceReader {
     }
     
     extractGoogleDocsContent() {
-        let text = '';
+        // Google Docs paragraph renderers
         const paragraphs = document.querySelectorAll('.kix-paragraphrenderer');
-        paragraphs.forEach(p => {
-            const content = p.textContent.trim();
-            if (content && content.length > 0) {
-                text += content + '\n\n';
+        if (paragraphs.length > 0) {
+            let text = '';
+            paragraphs.forEach(p => {
+                const content = p.textContent.trim();
+                if (content && content.length > 0) {
+                    text += content + '\n\n';
+                }
+            });
+            if (text.trim().length > 0) {
+                return this.cleanText(text);
             }
-        });
-        if (text.trim().length > 0) {
-            return text;
         }
+        
+        // Fallback: page content
         const content = document.querySelector('.kix-page-content');
-        return content ? content.textContent : '';
+        if (content && content.textContent.trim().length > 0) {
+            return this.cleanText(content.textContent);
+        }
+        
+        // Last resort
+        return this.cleanText(document.body.innerText);
     }
     
     extractPDFContent() {
-        let text = '';
-        const textLayers = document.querySelectorAll('.textLayer');
-        textLayers.forEach(layer => {
-            const layerText = layer.textContent.trim();
-            if (layerText && layerText.length > 0) {
-                text += layerText + '\n\n';
-            }
-        });
-        if (text.trim().length > 0) {
-            return text;
+        if (window.pdfProcessor) {
+            return window.pdfProcessor.extractText();
         }
+        
+        // Fallback to original method if pdfProcessor not available
+        const textLayers = document.querySelectorAll('.textLayer');
+        if (textLayers.length > 0) {
+            let text = '';
+            textLayers.forEach(layer => {
+                const layerText = layer.textContent.trim();
+                if (layerText && layerText.length > 0) {
+                    text += layerText + '\n\n';
+                }
+            });
+            if (text.trim().length > 0) {
+                return this.cleanText(text);
+            }
+        }
+        
+        // PDF.js viewer
         const viewer = document.querySelector('#viewer');
-        return viewer ? viewer.textContent : '';
+        if (viewer && viewer.textContent.trim().length > 0) {
+            return this.cleanText(viewer.textContent);
+        }
+        
+        // Fallback
+        return this.cleanText(document.body.innerText);
     }
     
     extractOfficeContent() {
+        // Office 365 main panels
         const selectors = [
             '#WACViewPanel',
             '.MainContent',
@@ -560,15 +586,17 @@ class VoiceReader {
         for (const selector of selectors) {
             const content = document.querySelector(selector);
             if (content && content.textContent.trim().length > 100) {
-                return content.textContent;
+                return this.cleanText(content.textContent);
             }
         }
-        return document.body.innerText;
+        
+        return this.cleanText(document.body.innerText);
     }
     
     extractParagraphs() {
-        // This is no longer used by the UI controls but kept for potential internal use
         const mainContent = this.extractMainContent();
+        
+        // Split by double newlines or long single newlines
         const paragraphs = mainContent
             .split(/\n\n+|\n{3,}/)
             .map(p => p.trim())
@@ -579,11 +607,8 @@ class VoiceReader {
     
     extractSentences() {
         const text = this.extractMainContent();
-        return this.extractSentencesFromText(text);
-    }
-    
-    extractSentencesFromText(text) {
-        // Split by sentence endings, keeping the ending punctuation
+        
+        // Split by sentence endings
         const sentences = text.match(/[^.!?]+[.!?]+[\s"]*/g) || [text];
         
         return sentences
@@ -670,4 +695,3 @@ window.addEventListener('message', (event) => {
 });
 
 console.log('✅ Voice Reader loaded - Supports web pages, PDFs, Google Docs, and Office Online!');
-})();
