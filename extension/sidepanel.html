@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>ChromeAI Plus - Accessibility Assistant</title>
+    <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+    <div class="sidepanel-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo-section">
+                <img src="assets/icons/icon48.png" alt="ChromeAI Plus" class="logo">
+                <h1>ChromeAI Plus</h1>
+            </div>
+            <p class="subtitle">AI-Powered Accessibility Assistant</p>
+        </div>
+
+        <!-- Auth Section (from popup) -->
+        <div class="auth-section" id="auth-section">
+            <h3>Account Access</h3>
+            <div id="auth-form-container">
+                <input type="email" id="auth-email" placeholder="Email" required>
+                <input type="password" id="auth-password" placeholder="Password" required>
+                
+                <button id="login-btn" class="primary-btn">Log In</button>
+                <button id="register-btn" class="secondary-btn">Register</button>
+                <p id="auth-message" class="auth-message"></p>
+            </div>
+        </div>
+
+        <!-- Main Content (hidden initially) -->
+        <div id="main-content" style="display: none;">
+            <!-- Mode Toggle (from popup) -->
+            <div class="mode-section">
+                <h3>Accessibility Mode</h3>
+                <label class="toggle-label">
+                    <input type="checkbox" id="accessibility-mode-toggle">
+                    <span class="toggle-slider"></span>
+                    Enable Accessibility Mode
+                </label>
+            </div>
+
+            <!-- Profile Section (from popup) -->
+            <div class="profile-section" id="profile-section">
+                <h3>Select Your Profile</h3>
+                <div class="profile-grid">
+                    <button class="profile-btn" data-profile="dyslexia">
+                        <span class="profile-icon">📖</span>
+                        <span class="profile-name">Dyslexia</span>
+                    </button>
+                    <button class="profile-btn" data-profile="adhd">
+                        <span class="profile-icon">🎯</span>
+                        <span class="profile-name">ADHD</span>
+                    </button>
+                    <button class="profile-btn" data-profile="visual_impairment">
+                        <span class="profile-icon">👁️</span>
+                        <span class="profile-name">Visual</span>
+                    </button>
+                    <button class="profile-btn" data-profile="non_native">
+                        <span class="profile-icon">🌐</span>
+                        <span class="profile-name">Language</span>
+                    </button>
+                </div>
+                <div id="current-profile" class="current-profile"></div>
+            </div>
+
+            <!-- Features Section (from popup) -->
+            <div class="features-section">
+                <h3>AI Features</h3>
+                <div class="features-grid">
+                    <button class="feature-btn" id="prompt-btn">
+                        <span class="icon">💭</span>
+                        <div class="feature-info">
+                            <span class="feature-name">Prompt API</span>
+                            <span class="feature-desc">AI conversations</span>
+                        </div>
+                    </button>
+                    <button class="feature-btn" id="proofread-btn">
+                        <span class="icon">🔤</span>
+                        <div class="feature-info">
+                            <span class="feature-name">Proofreader</span>
+                            <span class="feature-desc">Grammar check</span>
+                        </div>
+                    </button>
+                    <button class="feature-btn" id="summarize-btn">
+                        <span class="icon">📄</span>
+                        <div class="feature-info">
+                            <span class="feature-name">Summarizer</span>
+                            <span class="feature-desc">Condense content</span>
+                        </div>
+                    </button>
+                    <button class="feature-btn" id="translate-btn">
+                        <span class="icon">🌐</span>
+                        <div class="feature-info">
+                            <span class="feature-name">Translator</span>
+                            <span class="feature-desc">Multi-language</span>
+                        </div>
+                    </button>
+                    <button class="feature-btn feature-new" id="screenshot-btn">
+                        <span class="icon">📸</span>
+                        <div class="feature-info">
+                            <span class="feature-name">Screenshot AI</span>
+                            <span class="feature-desc">Analyze images</span>
+                            <span class="badge">NEW</span>
+                        </div>
+                    </button>
+                    <button class="feature-btn feature-new" id="ocr-translate-btn">
+                        <span class="icon">🖼️</span>
+                        <div class="feature-info">
+                            <span class="feature-name">OCR Translate</span>
+                            <span class="feature-desc">Extract & translate</span>
+                            <span class="badge">NEW</span>
+                        </div>
+                    </button>
+                    <button class="feature-btn" id="simplify-btn">
+                        <span class="icon">📝</span>
+                        <div class="feature-info">
+                            <span class="feature-name">Simplify</span>
+                            <span class="feature-desc">Easy reading</span>
+                        </div>
+                    </button>
+                    <button class="feature-btn feature-star" id="voice-reader-btn">
+                        <span class="icon">🔊</span>
+                        <div class="feature-info">
+                            <span class="feature-name">Voice Reader</span>
+                            <span class="feature-desc">Intelligent TTS</span>
+                            <span class="badge-star">★</span>
+                        </div>
+                    </button>
+                    <button class="feature-btn" id="insights-btn">
+                        <span class="icon">📊</span>
+                        <div class="feature-info">
+                            <span class="feature-name">Insights</span>
+                            <span class="feature-desc">Usage analytics</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quick Settings (from popup) -->
+            <div class="settings-section">
+                <h3>Quick Settings</h3>
+                <div class="settings-content">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="dyslexia-font">
+                        <span class="toggle-slider"></span>
+                        Dyslexia-Friendly Font
+                    </label>
+                    <label class="toggle-label">
+                        <input type="checkbox" id="high-contrast">
+                        <span class="toggle-slider"></span>
+                        High Contrast Mode
+                    </label>
+                    <label class="toggle-label">
+                        <input type="checkbox" id="reduce-motion">
+                        <span class="toggle-slider"></span>
+                        Reduce Motion
+                    </label>
+                    <div class="slider-setting">
+                        <label>Text Size: <span id="text-size-value">16px</span></label>
+                        <input type="range" id="text-size" min="12" max="24" value="16">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Keyboard Shortcuts (from popup) -->
+            <div class="shortcuts-section">
+                <h3>Keyboard Shortcuts</h3>
+                <div class="shortcuts-list">
+                    <div class="shortcut-item">
+                        <kbd>Ctrl+Shift+A</kbd>
+                        <span>Open Extension</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>Ctrl+Shift+S</kbd>
+                        <span>Simplify Text</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>Ctrl+Shift+R</kbd>
+                        <span>Read Aloud</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>Ctrl+Shift+I</kbd>
+                        <span>Analyze Screenshot</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logout Button (from popup) -->
+            <div class="logout-section">
+                <button id="logout-btn" class="logout-btn">Log Out</button>
+            </div>
+        </div>
+
+        <!-- Add this before the footer in your sidepanel.html -->
+        <div class="results-section" id="resultsSection" style="display: none; padding: 20px; border-bottom: 1px solid rgba(0, 0, 0, 0.1);">
+                <h3>Screenshot Results</h3>
+                <div class="result-content" id="resultContent" style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb;"></div>
+        </div>
+
+        <!-- Footer (from popup) -->
+        <div class="footer">
+            <p>💙 Built for accessibility & inclusion</p>
+            <p class="version">v1.0.0</p>
+        </div>
+    </div>
+
+    <script src="sidepanel.js"></script>
+</body>
+</html>
