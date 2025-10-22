@@ -38,6 +38,12 @@ class VoiceReader {
     // ============================================
     
     detectDocumentType() {
+        if (window.pdfProcessor && window.pdfProcessor.isPDF()) {
+            this.documentType = 'pdf';
+            console.log('📑 Document Type: PDF');
+            return;
+        }
+        
         const hostname = window.location.hostname;
         const url = window.location.href;
         
@@ -538,7 +544,16 @@ class VoiceReader {
     }
     
     extractPDFContent() {
+<<<<<<< Updated upstream
         // Chrome PDF viewer text layers
+=======
+        if (window.pdfProcessor) {
+            return window.pdfProcessor.extractText();
+        }
+        
+        // Fallback to original method if pdfProcessor not available
+        let text = '';
+>>>>>>> Stashed changes
         const textLayers = document.querySelectorAll('.textLayer');
         if (textLayers.length > 0) {
             let text = '';
@@ -551,6 +566,7 @@ class VoiceReader {
             if (text.trim().length > 0) {
                 return this.cleanText(text);
             }
+<<<<<<< Updated upstream
         }
         
         // PDF.js viewer
@@ -561,6 +577,10 @@ class VoiceReader {
         
         // Fallback
         return this.cleanText(document.body.innerText);
+=======
+        });
+        return text;
+>>>>>>> Stashed changes
     }
     
     extractOfficeContent() {
