@@ -1,0 +1,273 @@
+/* Accessibility-specific styles */
+
+/* Dyslexia Mode */
+.accessibility-dyslexia {
+    font-family: 'OpenDyslexic', 'Comic Sans MS', sans-serif !important;
+    line-height: 2.0 !important;
+    letter-spacing: 0.12em !important;
+}
+
+.accessibility-dyslexia p {
+    margin-bottom: 1.5em !important;
+}
+
+/* ADHD Mode - Enhanced Focus */
+html.accessibility-adhd,
+.chromeai-adhd-enabled {
+    background-color: #f7f7f7 !important;
+}
+
+/* Safe: Hide only obvious ads and distractions */
+html.accessibility-adhd [id*="ad"],
+html.accessibility-adhd [class*="ad"],
+html.accessibility-adhd [id*="Ad"],
+html.accessibility-adhd [class*="Ad"],
+html.accessibility-adhd iframe[src*="ads"],
+html.accessibility-adhd [class*="banner"],
+html.accessibility-adhd [id*="banner"],
+html.accessibility-adhd [class*="popup"],
+html.accessibility-adhd [id*="popup"],
+html.accessibility-adhd [class*="notification"],
+.chromeai-adhd-enabled [id*="ad"],
+.chromeai-adhd-enabled [class*="ad"],
+.chromeai-adhd-enabled [id*="Ad"],
+.chromeai-adhd-enabled [class*="Ad"],
+.chromeai-adhd-enabled iframe[src*="ads"],
+.chromeai-adhd-enabled [class*="banner"],
+.chromeai-adhd-enabled [id*="banner"],
+.chromeai-adhd-enabled [class*="popup"],
+.chromeai-adhd-enabled [id*="popup"],
+.chromeai-adhd-enabled [class*="notification"] {
+    display: none !important;
+}
+
+/* Safe: Style the main content */
+html.accessibility-adhd main,
+html.accessibility-adhd article,
+html.accessibility-adhd [role="main"],
+html.accessibility-adhd #content,
+html.accessibility-adhd .content,
+html.accessibility-adhd .post-content,
+.chromeai-adhd-enabled main,
+.chromeai-adhd-enabled article,
+.chromeai-adhd-enabled [role="main"] {
+    max-width: 700px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    padding: 20px !important;
+    background: white !important;
+    box-shadow: 0 0 20px rgba(0,0,0,0.1) !important;
+    border-radius: 8px !important;
+}
+
+/* Reading line feature */
+.chromeai-reading-line {
+    position: fixed;
+    left: 10%;
+    right: 10%;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, #4285f4, transparent);
+    background: #4285f4;
+    opacity: 0.6;
+    pointer-events: none;
+    z-index: 9999;
+    border-radius: 2px;
+    box-shadow: 0 0 10px rgba(66, 133, 244, 0.5);
+    transition: top 0.05s ease;
+}
+
+/* Ensure content within main areas is visible */
+html.accessibility-adhd main *,
+html.accessibility-adhd article *,
+html.accessibility-adhd [role="main"] *,
+html.accessibility-adhd #content *,
+html.accessibility-adhd .content *,
+html.accessibility-adhd .post-content * {
+    display: revert !important;
+}
+
+/* Typography improvements for readability */
+html.accessibility-adhd p,
+html.accessibility-adhd li,
+html.accessibility-adhd h1,
+html.accessibility-adhd h2,
+html.accessibility-adhd h3,
+html.accessibility-adhd h4,
+html.accessibility-adhd h5,
+html.accessibility-adhd h6 {
+    color: #333333 !important;
+    line-height: 1.8 !important;
+    margin-bottom: 1.2em !important;
+}
+
+/* Reduce distractions */
+html.accessibility-adhd aside,
+html.accessibility-adhd .sidebar,
+html.accessibility-adhd .advertisement,
+html.accessibility-adhd .social-share,
+html.accessibility-adhd .related-content,
+html.accessibility-adhd nav:not(.main-navigation),
+html.accessibility-adhd footer {
+    opacity: 0.1 !important;
+    transition: opacity 0.3s !important;
+}
+
+html.accessibility-adhd aside:hover,
+html.accessibility-adhd .sidebar:hover,
+html.accessibility-adhd .advertisement:hover,
+html.accessibility-adhd .social-share:hover,
+html.accessibility-adhd .related-content:hover,
+html.accessibility-adhd nav:not(.main-navigation):hover,
+html.accessibility-adhd footer:hover {
+    opacity: 1 !important;
+}
+
+/* Visual Impairment Mode */
+.accessibility-visual_impairment {
+    font-size: 18px !important;
+    line-height: 2.2 !important;
+    color: #000 !important;
+}
+
+/* Non-Native Speaker Mode */
+.accessibility-non_native {
+    font-size: 16px;
+    line-height: 1.9;
+}
+
+/* (In chromeai-plus/extension/styles/accessibility.css - Add/update Focus Mode section) */
+
+/* Focus Mode Base Style - Applied to the <body> */
+/* NOTE: The 'chromeai-focus-mode' class is being deprecated, but the styling is being repurposed
+   for the strict focus behavior requested for ADHD/Focus, applied through JavaScript. 
+   We will update this section to use 'display: none'. */
+body.chromeai-focus-mode, /* Deprecated: Use this style for strict focus */
+body.accessibility-adhd { /* Apply strict rules also when ADHD profile is active */
+    background-color: #f0f0f0 !important; 
+    /* Remove filter: contrast(0.8) as we are switching to strict hide/show */
+}
+
+/* STRICT FOCUS RULE: Hide EVERYTHING by default */
+body.chromeai-focus-mode *,
+body.accessibility-adhd * {
+    display: none !important; /* STRICT HIDE: Makes everything disappear */
+}
+
+/* STRICT FOCUS WHITELIST: Show ONLY main content containers and their direct children (text/headings) */
+body.chromeai-focus-mode main,
+body.chromeai-focus-mode article,
+body.chromeai-focus-mode [role="main"],
+body.chromeai-focus-mode #content,
+body.chromeai-focus-mode .content,
+body.chromeai-focus-mode .post-content,
+body.accessibility-adhd main,
+body.accessibility-adhd article,
+body.accessibility-adhd [role="main"],
+body.accessibility-adhd #content,
+body.accessibility-adhd .content,
+body.accessibility-adhd .post-content,
+body.chromeai-focus-mode .chromeai-overlay, 
+body.chromeai-focus-mode .chromeai-overlay *,
+body.accessibility-adhd .chromeai-overlay, 
+body.accessibility-adhd .chromeai-overlay * {
+    display: block !important; /* Show the container itself */
+}
+
+/* STRICT FOCUS CHILD WHITELIST: Ensure all content inside the main container is visible */
+body.chromeai-focus-mode main *,
+body.chromeai-focus-mode article *,
+body.chromeai-focus-mode [role="main"] *,
+body.chromeai-focus-mode #content *,
+body.chromeai-focus-mode .content *,
+body.chromeai-focus-mode .post-content *,
+body.accessibility-adhd main *,
+body.accessibility-adhd article *,
+body.accessibility-adhd [role="main"] *,
+body.accessibility-adhd #content *,
+body.accessibility-adhd .content *,
+body.accessibility-adhd .post-content * {
+    display: block !important; /* Show nested content */
+    opacity: 1 !important; /* Override any lingering opacity from non-focus modes */
+}
+/* END OF STRICT FOCUS IMPLEMENTATION */
+
+
+/* Scroll the main content to the center of the viewport */
+body.chromeai-focus-mode main {
+    position: relative;
+    margin: 20px auto;
+    max-width: 800px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    background: white;
+}
+
+/* Focus Mode */
+.focus-mode-hidden {
+    display: none !important;
+} 
+/* (In chromeai-plus/extension/styles/accessibility.css, ensure these exist) */
+
+/* Global focus mode class for the body */
+.focus-mode-active {
+    /* Example: Darken the body and show only main content */
+    background-color: #f0f0f0 !important;
+}
+
+/* Hide sidebars, ads, and footers when focus mode is active */
+.focus-mode-active :not(main):not(article):not(.focus-mode-whitelist) {
+    /* Hide all non-essential elements */
+    opacity: 0.1 !important;
+    transition: opacity 0.5s;
+}
+
+/* Ensure only essential elements are highly visible */
+.focus-mode-active main,
+.focus-mode-active article {
+    opacity: 1 !important;
+    background: white !important;
+    padding: 20px;
+    border-radius: 10px;
+}
+
+/* High Contrast */
+body.high-contrast-mode {
+    filter: contrast(1.5) !important;
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+/* Dyslexia Font */
+@font-face {
+    font-family: 'OpenDyslexic';
+    src: url('https://cdn.jsdelivr.net/npm/open-dyslexic@1.0.3/fonts/OpenDyslexic-Regular.woff2') format('woff2');
+    font-weight: normal;
+    font-style: normal;
+}
+
+/* WCAG Focus Indicators */
+button:focus,
+input:focus,
+select:focus,
+textarea:focus {
+    outline: 3px solid #667eea !important;
+    outline-offset: 2px !important;
+}
+
+/* Screen Reader Only */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}

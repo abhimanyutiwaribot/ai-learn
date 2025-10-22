@@ -10,6 +10,8 @@ import base64
 from PIL import Image
 import io
 
+# CRITICAL FIX: Removed all APIError imports. General exceptions will be used.
+
 load_dotenv()
 
 app = Flask(__name__)
@@ -52,6 +54,61 @@ def health_check():
         "gemini_enabled": GEMINI_ENABLED,
         "mongodb_enabled": MONGODB_ENABLED
     }), 200
+    
+# (In chromeai-plus/backend/app.py - Add after the /health route)
+
+@app.route('/api/auth/register', methods=['POST'])
+def register_user():
+    try:
+        if not MONGODB_ENABLED:
+            return jsonify({"success": False, "error": "MongoDB not configured"}), 400
+            
+        data = request.json
+        email = data.get('email').lower()
+        password = data.get('password') 
+        
+        if not email or not password:
+            return jsonify({"success": False, "error": "Email and password are required"}), 400
+
+        # Check if user already exists
+        if db.users.find_one({'email': email}):
+            return jsonify({"success": False, "error": "User already exists. Please log in instead."}), 409
+            
+        # Register user (Note: Password hashing is recommended for production)
+        db.users.insert_one({
+            'email': email,
+            'password': password, 
+            'created_at': datetime.utcnow()
+        })
+        
+        return jsonify({"success": True, "message": "User registered successfully", "userId": email}), 201
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/auth/login', methods=['POST'])
+def login_user():
+    try:
+        if not MONGODB_ENABLED:
+            return jsonify({"success": False, "error": "MongoDB not configured"}), 400
+            
+        data = request.json
+        email = data.get('email').lower()
+        password = data.get('password')
+        
+        if not email or not password:
+            return jsonify({"success": False, "error": "Email and password are required"}), 400
+
+        # Check user credentials
+        user = db.users.find_one({'email': email, 'password': password})
+        
+        if user:
+            return jsonify({"success": True, "message": "Login successful", "userId": email}), 200
+        else:
+            return jsonify({"success": False, "error": "Invalid email or password"}), 401
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 # ============================================
 # MULTIMODAL AI
@@ -69,7 +126,8 @@ def analyze_image():
         user_query = data.get('query', 'Analyze this image')
         accessibility_mode = data.get('accessibilityMode')
         
-        model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        # MODEL: gemini-2.5-flash (Updated from gemini-2.0-flash-exp)
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
         if accessibility_mode:
             prompt = build_accessibility_prompt(user_query, accessibility_mode)
@@ -96,6 +154,7 @@ def analyze_image():
         }), 200
         
     except Exception as e:
+        # Catching generic Exception covers all SDK errors without needing specific imports
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/multimodal/ocr-translate', methods=['POST'])
@@ -109,7 +168,8 @@ def ocr_translate():
         image_base64 = data.get('image')
         target_language = data.get('targetLanguage', 'English')
         
-        model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        # MODEL: gemini-2.5-flash (Updated from gemini-2.0-flash-exp)
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
         prompt = f"""
         Extract all text from this image and translate it to {target_language}.
@@ -136,6 +196,7 @@ def ocr_translate():
         }), 200
         
     except Exception as e:
+        # Catching generic Exception covers all SDK errors without needing specific imports
         return jsonify({"success": False, "error": str(e)}), 500
 
 # ============================================
@@ -159,7 +220,8 @@ def hybrid_prompt():
                     "error": "Cloud AI not available. Prompt too long for on-device processing."
                 }), 400
             
-            model = genai.GenerativeModel('gemini-pro')
+            # MODEL: gemini-2.5-flash (Updated from gemini-2.0-flash-exp)
+            model = genai.GenerativeModel('gemini-2.5-flash')
             
             if accessibility_mode:
                 prompt = build_accessibility_prompt(prompt, accessibility_mode)
@@ -184,6 +246,7 @@ def hybrid_prompt():
             }), 200
         
     except Exception as e:
+        # Catching generic Exception covers all SDK errors without needing specific imports
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/hybrid/simplify', methods=['POST'])
@@ -203,7 +266,8 @@ def hybrid_simplify():
                     "error": "Cloud AI not available. Text too long for on-device processing."
                 }), 400
             
-            model = genai.GenerativeModel('gemini-pro')
+            # MODEL: gemini-2.5-flash (Updated from gemini-pro)
+            model = genai.GenerativeModel('gemini-2.5-flash')
             
             prompt = f"Simplify this text for someone with {accessibility_mode or 'general'} reading needs:\n\n{text}"
             
@@ -212,7 +276,7 @@ def hybrid_simplify():
             elif accessibility_mode == 'adhd':
                 prompt += "\n\nUse concise chunks, numbered lists, and highlight key points."
             elif accessibility_mode == 'non_native':
-                prompt += "\n\nUse simple vocabulary and define complex terms."
+                prompt += "\n\nUse simple vocabulary and define terms."
             
             response = model.generate_content(prompt)
             
@@ -232,6 +296,7 @@ def hybrid_simplify():
             }), 200
         
     except Exception as e:
+        # Catching generic Exception covers all SDK errors without needing specific imports
         return jsonify({"success": False, "error": str(e)}), 500
 
 # ============================================
@@ -398,8 +463,8 @@ def get_insights(user_id):
             session['timestamp'] = session['timestamp'].isoformat()
             sessions_data.append(session)
         
-        # Generate insights with Gemini
-        model = genai.GenerativeModel('gemini-pro')
+        # MODEL: gemini-2.5-flash (Updated from gemini-pro)
+        model = genai.GenerativeModel('gemini-2.5-flash')
         prompt = f"""Analyze these learning session patterns and provide personalized insights:
 
 {json.dumps(sessions_data[:10], indent=2)}
