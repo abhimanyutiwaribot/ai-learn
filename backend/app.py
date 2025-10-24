@@ -1,6 +1,9 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
+from werkzeug.utils import secure_filename
+import PyPDF2
+import openai
 from dotenv import load_dotenv
 import google.generativeai as genai
 from pymongo import MongoClient
@@ -13,9 +16,22 @@ import io
 # CRITICAL FIX: Removed all APIError imports. General exceptions will be used.
 
 load_dotenv()
+OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 
 app = Flask(__name__)
 CORS(app)
+
+# simple request logger to debug 404s from the extension
+@app.before_request
+def _log_request():
+    try:
+        print(">>> Incoming request:", request.method, request.path, "from", request.remote_addr)
+    except Exception:
+        pass
+
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Configure Gemini API
 GEMINI_API_KEY = os.getenv('GOOGLE_AI_API_KEY')
@@ -560,6 +576,165 @@ def log_usage(user_id, feature, metadata=None):
             db.usage_logs.insert_one(log_data)
     except Exception as e:
         print(f"Failed to log usage: {e}")
+
+def extract_text_from_pdf(path):
+    text_parts = []
+    try:
+        with open(path, 'rb') as fh:
+            reader = PyPDF2.PdfReader(fh)
+            for p in reader.pages:
+                try:
+                    text_parts.append(p.extract_text() or "")
+                except Exception:
+                    continue
+    except Exception as e:
+        return ""
+    return "\n".join(text_parts)
+
+def summarize_with_openai(text):
+    openai.api_key = OPENAI_KEY
+    # simple prompt - adjust as needed
+    prompt = f"Summarize the following document into a concise summary:\n\n{text[:30000]}"
+    resp = openai.Completion.create(
+        engine="text-davinci-003",
+        prompt=prompt,
+        max_tokens=400,
+        temperature=0.3
+    )
+    return resp.choices[0].text.strip()
+
+def proofread_with_openai(text):
+    openai.api_key = OPENAI_KEY
+    prompt = f"""Please proofread the following text for grammar, spelling, punctuation, and style improvements. 
+Provide the corrected version and highlight any major issues found:
+
+{text[:30000]}"""
+    resp = openai.Completion.create(
+        engine="text-davinci-003",
+        prompt=prompt,
+        max_tokens=800,
+        temperature=0.2
+    )
+    return resp.choices[0].text.strip()
+
+@app.route('/upload', methods=['POST'])
+def upload_pdf():
+    """Handle PDF file upload"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({"error": "No file provided"}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "No file selected"}), 400
+        
+        if not file.filename.lower().endswith('.pdf'):
+            return jsonify({"error": "Only PDF files are allowed"}), 400
+        
+        # Secure the filename and save the file
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+        
+        return jsonify({"filename": filename}), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/summarize', methods=['POST'])
+def summarize_pdf():
+    data = request.get_json() or {}
+    filename = data.get('filename')
+    if not filename:
+        return jsonify({"error": "filename required"}), 400
+    path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(filename))
+    if not os.path.exists(path):
+        return jsonify({"error": "file not found"}), 404
+    text = extract_text_from_pdf(path)
+    if not text:
+        return jsonify({"error": "no text extracted"}), 500
+    summary = None
+    if OPENAI_KEY:
+        try:
+            summary = summarize_with_openai(text)
+        except Exception:
+            summary = None
+    if not summary:
+        summary = text.strip()[:2000]
+        if len(text) > 2000:
+            summary += "\n\n[Truncated preview. Add OPENAI_API_KEY in backend .env for better summaries.]"
+    return jsonify({"summary": summary}), 200
+
+@app.route('/proofread', methods=['POST'])
+def proofread_pdf():
+    """Proofread PDF content for grammar, spelling, and style"""
+    data = request.get_json() or {}
+    filename = data.get('filename')
+    if not filename:
+        return jsonify({"error": "filename required"}), 400
+    path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(filename))
+    if not os.path.exists(path):
+        return jsonify({"error": "file not found"}), 404
+    text = extract_text_from_pdf(path)
+    if not text:
+        return jsonify({"error": "no text extracted"}), 500
+    
+    proofread_result = None
+    if OPENAI_KEY:
+        try:
+            proofread_result = proofread_with_openai(text)
+        except Exception:
+            proofread_result = None
+    if not proofread_result:
+        # Fallback: basic text analysis
+        proofread_result = f"Text extracted from PDF:\n\n{text[:1000]}\n\n[Add OPENAI_API_KEY in backend .env for AI-powered proofreading.]"
+    
+    return jsonify({"proofread": proofread_result}), 200
+
+@app.route('/process-pdf', methods=['POST'])
+def process_pdf():
+    """Process PDF with multiple options: summarize, proofread, or both"""
+    data = request.get_json() or {}
+    filename = data.get('filename')
+    action = data.get('action', 'summarize')  # 'summarize', 'proofread', or 'both'
+    
+    if not filename:
+        return jsonify({"error": "filename required"}), 400
+    path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(filename))
+    if not os.path.exists(path):
+        return jsonify({"error": "file not found"}), 404
+    
+    text = extract_text_from_pdf(path)
+    if not text:
+        return jsonify({"error": "no text extracted"}), 500
+    
+    result = {}
+    
+    if action in ['summarize', 'both']:
+        summary = None
+        if OPENAI_KEY:
+            try:
+                summary = summarize_with_openai(text)
+            except Exception:
+                summary = None
+        if not summary:
+            summary = text.strip()[:2000]
+            if len(text) > 2000:
+                summary += "\n\n[Truncated preview. Add OPENAI_API_KEY in backend .env for better summaries.]"
+        result['summary'] = summary
+    
+    if action in ['proofread', 'both']:
+        proofread_result = None
+        if OPENAI_KEY:
+            try:
+                proofread_result = proofread_with_openai(text)
+            except Exception:
+                proofread_result = None
+        if not proofread_result:
+            proofread_result = f"Text extracted from PDF:\n\n{text[:1000]}\n\n[Add OPENAI_API_KEY in backend .env for AI-powered proofreading.]"
+        result['proofread'] = proofread_result
+    
+    return jsonify(result), 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

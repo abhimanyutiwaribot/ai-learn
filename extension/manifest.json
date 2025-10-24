@@ -24,6 +24,7 @@
     "service_worker": "background.js"
   },
   "action": {
+    "default_popup": "popup.html",
     "default_icon": {
       "16": "assets/icons/icon16.png",
       "48": "assets/icons/icon48.png",
@@ -67,7 +68,10 @@
         "proofreader-handler.js",
         "sidepanel.html",
         "sidepanel.js",
-        "sidepanel.css"
+        "sidepanel.css",
+        "tutorial.html",
+        "tutorial.css",
+        "tutorial.js"
       ],
       "matches": ["<all_urls>"]
     }
