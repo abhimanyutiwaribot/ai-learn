@@ -3,7 +3,6 @@ from flask_cors import CORS
 import os
 from werkzeug.utils import secure_filename
 import PyPDF2
-import openai
 from dotenv import load_dotenv
 import google.generativeai as genai
 from pymongo import MongoClient
@@ -17,7 +16,6 @@ from docx import Document
 # CRITICAL FIX: Removed all APIError imports. General exceptions will be used.
 
 load_dotenv()
-OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 
 app = Flask(__name__)
 CORS(app)
@@ -55,9 +53,9 @@ if MONGODB_URI:
         client.admin.command('ping')
         db = client['chromeai_plus']  # Database name
         MONGODB_ENABLED = True
-        print("✅ MongoDB Atlas connected successfully")
+        print("MongoDB Atlas connected successfully")
     except Exception as e:
-        print(f"❌ MongoDB connection failed: {e}")
+        print(f"MongoDB connection failed: {e}")
         MONGODB_ENABLED = False
         db = None
 else:
@@ -604,31 +602,36 @@ def extract_text_from_docx(path):
     except Exception as e:
         return ""
 
-def summarize_with_openai(text):
-    openai.api_key = OPENAI_KEY
-    # simple prompt - adjust as needed
-    prompt = f"Summarize the following document into a concise summary:\n\n{text[:30000]}"
-    resp = openai.Completion.create(
-        engine="text-davinci-003",
-        prompt=prompt,
-        max_tokens=400,
-        temperature=0.3
-    )
-    return resp.choices[0].text.strip()
+def summarize_with_gemini(text):
+    """Summarize text using Gemini 2.5 Flash"""
+    if not GEMINI_ENABLED:
+        return None
+    
+    try:
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        prompt = f"Summarize the following document into a concise summary:\n\n{text[:30000]}"
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        print(f"Gemini summarization error: {e}")
+        return None
 
-def proofread_with_openai(text):
-    openai.api_key = OPENAI_KEY
-    prompt = f"""Please proofread the following text for grammar, spelling, punctuation, and style improvements. 
+def proofread_with_gemini(text):
+    """Proofread text using Gemini 2.5 Flash"""
+    if not GEMINI_ENABLED:
+        return None
+    
+    try:
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        prompt = f"""Please proofread the following text for grammar, spelling, punctuation, and style improvements. 
 Provide the corrected version and highlight any major issues found:
 
 {text[:30000]}"""
-    resp = openai.Completion.create(
-        engine="text-davinci-003",
-        prompt=prompt,
-        max_tokens=800,
-        temperature=0.2
-    )
-    return resp.choices[0].text.strip()
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        print(f"Gemini proofreading error: {e}")
+        return None
 
 @app.route('/upload', methods=['POST'])
 def upload_document():
@@ -669,15 +672,15 @@ def summarize_pdf():
     if not text:
         return jsonify({"error": "no text extracted"}), 500
     summary = None
-    if OPENAI_KEY:
+    if GEMINI_ENABLED:
         try:
-            summary = summarize_with_openai(text)
+            summary = summarize_with_gemini(text)
         except Exception:
             summary = None
     if not summary:
         summary = text.strip()[:2000]
         if len(text) > 2000:
-            summary += "\n\n[Truncated preview. Add OPENAI_API_KEY in backend .env for better summaries.]"
+            summary += "\n\n[Truncated preview. Add GOOGLE_AI_API_KEY in backend .env for better summaries.]"
     return jsonify({"summary": summary}), 200
 
 @app.route('/proofread', methods=['POST'])
@@ -695,14 +698,14 @@ def proofread_pdf():
         return jsonify({"error": "no text extracted"}), 500
     
     proofread_result = None
-    if OPENAI_KEY:
+    if GEMINI_ENABLED:
         try:
-            proofread_result = proofread_with_openai(text)
+            proofread_result = proofread_with_gemini(text)
         except Exception:
             proofread_result = None
     if not proofread_result:
         # Fallback: basic text analysis
-        proofread_result = f"Text extracted from PDF:\n\n{text[:1000]}\n\n[Add OPENAI_API_KEY in backend .env for AI-powered proofreading.]"
+        proofread_result = f"Text extracted from PDF:\n\n{text[:1000]}\n\n[Add GOOGLE_AI_API_KEY in backend .env for AI-powered proofreading.]"
     
     return jsonify({"proofread": proofread_result}), 200
 
@@ -727,26 +730,26 @@ def process_pdf():
     
     if action in ['summarize', 'both']:
         summary = None
-        if OPENAI_KEY:
+        if GEMINI_ENABLED:
             try:
-                summary = summarize_with_openai(text)
+                summary = summarize_with_gemini(text)
             except Exception:
                 summary = None
         if not summary:
             summary = text.strip()[:2000]
             if len(text) > 2000:
-                summary += "\n\n[Truncated preview. Add OPENAI_API_KEY in backend .env for better summaries.]"
+                summary += "\n\n[Truncated preview. Add GOOGLE_AI_API_KEY in backend .env for better summaries.]"
         result['summary'] = summary
     
     if action in ['proofread', 'both']:
         proofread_result = None
-        if OPENAI_KEY:
+        if GEMINI_ENABLED:
             try:
-                proofread_result = proofread_with_openai(text)
+                proofread_result = proofread_with_gemini(text)
             except Exception:
                 proofread_result = None
         if not proofread_result:
-            proofread_result = f"Text extracted from PDF:\n\n{text[:1000]}\n\n[Add OPENAI_API_KEY in backend .env for AI-powered proofreading.]"
+            proofread_result = f"Text extracted from PDF:\n\n{text[:1000]}\n\n[Add GOOGLE_AI_API_KEY in backend .env for AI-powered proofreading.]"
         result['proofread'] = proofread_result
     
     return jsonify(result), 200
@@ -782,27 +785,27 @@ def process_document():
     
     if action in ['summarize', 'both']:
         summary = None
-        if OPENAI_KEY:
+        if GEMINI_ENABLED:
             try:
-                summary = summarize_with_openai(text)
+                summary = summarize_with_gemini(text)
             except Exception:
                 summary = None
         if not summary:
             summary = text.strip()[:2000]
             if len(text) > 2000:
-                summary += "\n\n[Truncated preview. Add OPENAI_API_KEY in backend .env for better summaries.]"
+                summary += "\n\n[Truncated preview. Add GOOGLE_AI_API_KEY in backend .env for better summaries.]"
         result['summary'] = summary
     
     if action in ['proofread', 'both']:
         proofread_result = None
-        if OPENAI_KEY:
+        if GEMINI_ENABLED:
             try:
-                proofread_result = proofread_with_openai(text)
+                proofread_result = proofread_with_gemini(text)
             except Exception:
                 proofread_result = None
         if not proofread_result:
             file_type = "PDF" if filename.lower().endswith('.pdf') else "Word document"
-            proofread_result = f"Text extracted from {file_type}:\n\n{text[:1000]}\n\n[Add OPENAI_API_KEY in backend .env for AI-powered proofreading.]"
+            proofread_result = f"Text extracted from {file_type}:\n\n{text[:1000]}\n\n[Add GOOGLE_AI_API_KEY in backend .env for AI-powered proofreading.]"
         result['proofread'] = proofread_result
     
     return jsonify(result), 200
