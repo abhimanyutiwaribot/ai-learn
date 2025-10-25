@@ -3,9 +3,14 @@
   "name": "ChromeAI Plus - AI-Powered Accessibility Assistant",
   "version": "1.0.0",
   "description": "First voice reader that understands what it's reading. AI-powered accessibility for students with learning differences.",
+  "key": "YOUR_EXTENSION_PUBLIC_KEY",
+  "trial_tokens": [
+    "YOUR_TRIAL_TOKEN_1",
+    "YOUR_TRIAL_TOKEN_2"
+  ],
   "permissions": [
     "activeTab",
-    "scripting", 
+    "scripting",
     "storage",
     "contextMenus",
     "notifications",
@@ -36,7 +41,9 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
+      "matches": [
+        "<all_urls>"
+      ],
       "js": [
         "utils/wcag-checker.js",
         "utils/profile-sync.js",
@@ -53,8 +60,12 @@
       "all_frames": true
     },
     {
-      "matches": ["https://docs.google.com/*"],
-      "js": ["google-docs-adapter.js"],
+      "matches": [
+        "https://docs.google.com/*"
+      ],
+      "js": [
+        "google-docs-adapter.js"
+      ],
       "run_at": "document_end"
     }
   ],
@@ -73,7 +84,9 @@
         "tutorial.css",
         "tutorial.js"
       ],
-      "matches": ["<all_urls>"]
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ],
   "commands": {

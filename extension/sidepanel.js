@@ -98,44 +98,132 @@ class ChromeAISidePanel {
             });
         });
         
-        // --- Feature Listeners (from popup) ---
-        document.getElementById('prompt-btn').addEventListener('click', () => this.activateFeature('PROMPT'));
-        document.getElementById('proofread-btn').addEventListener('click', () => this.activateFeature('PROOFREAD'));
-        document.getElementById('summarize-btn').addEventListener('click', () => this.activateFeature('SUMMARIZE'));
-        document.getElementById('translate-btn').addEventListener('click', () => this.activateFeature('TRANSLATE'));
-        document.getElementById('screenshot-btn').addEventListener('click', () => this.handleScreenshotDirect());
-        document.getElementById('ocr-translate-btn').addEventListener('click', () => this.activateFeature('OCR_TRANSLATE'));
-        document.getElementById('simplify-btn').addEventListener('click', () => this.activateFeature('SIMPLIFY'));
-        document.getElementById('voice-reader-btn').addEventListener('click', () => this.activateFeature('VOICE_READER'));
-        document.getElementById('insights-btn').addEventListener('click', () => this.showInsights());
+        // --- Feature Listeners (Updated for sidepanel interfaces) ---
+        document.getElementById('prompt-btn').addEventListener('click', () => this.showFeatureInterface('prompt'));
+        document.getElementById('proofread-btn').addEventListener('click', () => this.showFeatureInterface('proofread'));
+        document.getElementById('summarize-btn').addEventListener('click', () => this.showFeatureInterface('summarize'));
+        document.getElementById('translate-btn').addEventListener('click', () => this.showFeatureInterface('translate'));
+        document.getElementById('screenshot-btn').addEventListener('click', () => this.showFeatureInterface('screenshot'));
+        document.getElementById('ocr-translate-btn').addEventListener('click', () => this.showFeatureInterface('ocr-translate'));
+        document.getElementById('simplify-btn').addEventListener('click', () => this.showFeatureInterface('simplify'));
+        document.getElementById('voice-reader-btn').addEventListener('click', () => this.showFeatureInterface('voice-reader'));
+        document.getElementById('insights-btn').addEventListener('click', () => this.showFeatureInterface('insights'));
         
-        // --- Quick Settings Listeners ---
-        document.getElementById('dyslexia-font').addEventListener('change', (e) => {
-            this.updateSettings({ dyslexiaFont: e.target.checked });
-            this.showStatus(e.target.checked ? 'Dyslexia-friendly font enabled' : 'Dyslexia-friendly font disabled', 'success');
-        });
-        document.getElementById('high-contrast').addEventListener('change', (e) => {
-            this.updateSettings({ highContrast: e.target.checked });
-            this.showStatus(e.target.checked ? 'High contrast mode enabled' : 'High contrast mode disabled', 'success');
-        });
-        document.getElementById('reduce-motion').addEventListener('change', (e) => {
-            this.updateSettings({ reduceMotion: e.target.checked });
-            this.showStatus(e.target.checked ? 'Motion reduction enabled' : 'Motion reduction disabled', 'success');
-        });
-        document.getElementById('text-size').addEventListener('input', (e) => {
-            const size = e.target.value;
-            document.getElementById('text-size-value').textContent = size + 'px';
-            this.updateSettings({ textSize: size });
-            this.showStatus(`Text size set to ${size}px`, 'success');
-        });
+        // --- Back Button Listeners ---
+        document.getElementById('prompt-back-btn').addEventListener('click', () => this.hideFeatureInterface('prompt'));
+        document.getElementById('proofread-back-btn').addEventListener('click', () => this.hideFeatureInterface('proofread'));
+        document.getElementById('summarize-back-btn').addEventListener('click', () => this.hideFeatureInterface('summarize'));
+        document.getElementById('translate-back-btn').addEventListener('click', () => this.hideFeatureInterface('translate'));
+        document.getElementById('simplify-back-btn').addEventListener('click', () => this.hideFeatureInterface('simplify'));
+        document.getElementById('voice-reader-back-btn').addEventListener('click', () => this.hideFeatureInterface('voice-reader'));
+        document.getElementById('ocr-translate-back-btn').addEventListener('click', () => this.hideFeatureInterface('ocr-translate'));
+        document.getElementById('screenshot-back-btn').addEventListener('click', () => this.hideFeatureInterface('screenshot'));
+        document.getElementById('insights-back-btn').addEventListener('click', () => this.hideFeatureInterface('insights'));
+        
+        // --- Feature Action Listeners ---
+        document.getElementById('prompt-submit').addEventListener('click', () => this.handlePromptSubmit());
+        document.getElementById('proofread-submit').addEventListener('click', () => this.handleProofreadSubmit());
+        document.getElementById('summarize-submit').addEventListener('click', () => this.handleSummarizeSubmit());
+        document.getElementById('translate-submit').addEventListener('click', () => this.handleTranslateSubmit());
+        document.getElementById('simplify-submit').addEventListener('click', () => this.handleSimplifySubmit());
+        document.getElementById('voice-read-submit').addEventListener('click', () => this.handleVoiceReadSubmit());
+        document.getElementById('voice-stop-btn').addEventListener('click', () => this.handleVoiceStop());
+        document.getElementById('ocr-translate-submit').addEventListener('click', () => this.handleOCRTranslateSubmit());
+        
+        // --- Source Button Listeners ---
+        // Proofreader source buttons
+        document.getElementById('proofread-selected-btn').addEventListener('click', () => this.switchTextSource('proofread', 'selected'));
+        document.getElementById('proofread-page-btn').addEventListener('click', () => this.switchTextSource('proofread', 'page'));
+        
+        // Summarizer source buttons
+        document.getElementById('summarize-selected-btn').addEventListener('click', () => this.switchTextSource('summarize', 'selected'));
+        document.getElementById('summarize-page-btn').addEventListener('click', () => this.switchTextSource('summarize', 'page'));
+        
+        // Translator source buttons
+        document.getElementById('translate-selected-btn').addEventListener('click', () => this.switchTextSource('translate', 'selected'));
+        document.getElementById('translate-page-btn').addEventListener('click', () => this.switchTextSource('translate', 'page'));
+        
+        // Voice Reader source buttons
+        document.getElementById('voice-selected-btn').addEventListener('click', () => this.switchTextSource('voice-reader', 'selected'));
+        document.getElementById('voice-page-btn').addEventListener('click', () => this.switchTextSource('voice-reader', 'page'));
+        
+        // OCR source buttons
+        document.getElementById('ocr-upload-btn').addEventListener('click', () => this.switchOCRSource('upload'));
+        document.getElementById('ocr-screenshot-btn').addEventListener('click', () => this.switchOCRSource('screenshot'));
+        
+        // OCR Upload Listeners ---
+        document.getElementById('ocr-upload-area').addEventListener('click', () => document.getElementById('ocr-image-input').click());
+        document.getElementById('ocr-image-input').addEventListener('change', (e) => this.handleOCRImageUpload(e));
+        document.getElementById('remove-ocr-image').addEventListener('click', () => this.removeOCRImage());
+        
+        // OCR Screenshot Listeners ---
+        document.getElementById('capture-screenshot-btn').addEventListener('click', () => this.captureOCRImage());
+        document.getElementById('remove-ocr-screenshot').addEventListener('click', () => this.removeOCRScreenshot());
+        
+        // Voice Reader Controls ---
+        document.getElementById('voice-speed').addEventListener('input', (e) => this.updateVoiceControl('speed', e.target.value));
+        document.getElementById('voice-pitch').addEventListener('input', (e) => this.updateVoiceControl('pitch', e.target.value));
+        document.getElementById('voice-volume').addEventListener('input', (e) => this.updateVoiceControl('volume', e.target.value));
+        document.getElementById('voice-pause-btn').addEventListener('click', () => this.handleVoicePause());
+        
+        // --- Screenshot Listeners ---
+    const analyzeScreenshotBtn = document.getElementById('analyze-screenshot-btn');
+    if (analyzeScreenshotBtn) analyzeScreenshotBtn.addEventListener('click', () => this.handleScreenshotAnalysis());
+        // Main capture button for screenshot interface
+        const captureMainBtn = document.getElementById('capture-screenshot-main');
+        if (captureMainBtn) {
+            captureMainBtn.addEventListener('click', () => this.captureScreenshot());
+        }
+        
+        // --- OCR Response Listeners ---
+        document.getElementById('copy-ocr-response').addEventListener('click', () => this.copyOCRResponse());
+        document.getElementById('clear-ocr-response').addEventListener('click', () => this.clearOCRResponse());
     }
 
-    // === SCREENSHOT FUNCTIONALITY (DIRECT SIDE PANEL) ===
-    async handleScreenshotDirect() {
-        this.showStatus('📸 Capturing screenshot...', 'success');
+    // === SCREENSHOT FUNCTIONALITY ===
+    initializeScreenshotInterface() {
+        // Reset screenshot interface
+        const previewDiv = document.getElementById('screenshot-preview');
+        const responseDiv = document.getElementById('screenshot-response');
+        const queryInput = document.getElementById('screenshot-query');
+        const analyzeBtn = document.getElementById('analyze-screenshot-btn');
+        const quickAnalyzeBtn = document.getElementById('quick-analyze-btn');
+    const captureBtn = document.getElementById('capture-screenshot-main') || document.getElementById('capture-screenshot-btn');
         
+        if (previewDiv) previewDiv.style.display = 'none';
+        if (responseDiv) responseDiv.style.display = 'none';
+        if (queryInput) queryInput.value = '';
+        if (analyzeBtn) analyzeBtn.disabled = true;
+        if (quickAnalyzeBtn) quickAnalyzeBtn.disabled = true;
+        if (captureBtn) captureBtn.disabled = false;
+        
+        // Reset current screenshot data
+        this.currentScreenshotData = null;
+        
+        // Show status ready message
+        this.showStatus('Ready to capture screenshot. Click "Capture Screenshot" to begin.', 'info');
+        
+        // Return true to indicate successful initialization
+        return true;
+    }
+
+    async captureScreenshot() {
         try {
-            // Get screenshot from background script
+            this.showStatus('📸 Capturing screenshot...', 'info');
+            
+            // Initialize screenshot interface first
+            await this.initializeScreenshotInterface();
+            
+            // Request tab focus before capturing
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab) {
+                throw new Error('No active tab found');
+            }
+            await chrome.tabs.update(tab.id, { active: true });
+            
+            // Small delay to ensure tab is focused
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
             const response = await new Promise((resolve, reject) => {
                 chrome.runtime.sendMessage({
                     type: 'CAPTURE_SCREENSHOT'
@@ -148,107 +236,96 @@ class ChromeAISidePanel {
                 });
             });
 
-             if (response && response.success) {
-            this.showStatus('✅ Screenshot captured! Analyzing with AI...', 'success');
-            
-            // Create screenshot preview in the side panel
-            this.showScreenshotPreview(response.dataUrl);
-            
-            }   else {
-            const errorMsg = response ? response.error : 'Unknown error';
-            this.showStatus('❌ Failed to capture screenshot: ' + errorMsg, 'error');
-        }
-    }  catch (error) {
+            if (response && response.success) {
+                this.showScreenshotPreview(response.dataUrl);
+                this.showStatus('✅ Screenshot captured!', 'success');
+                
+                // Enable screenshot analysis buttons
+                const analyzeBtn = document.getElementById('analyze-screenshot-btn');
+                const quickAnalyzeBtn = document.getElementById('quick-analyze-btn');
+                if (analyzeBtn) analyzeBtn.disabled = false;
+                if (quickAnalyzeBtn) quickAnalyzeBtn.disabled = false;
+            } else {
+                const errorMsg = response ? response.error : 'Unknown error';
+                this.showStatus('❌ Failed to capture screenshot: ' + errorMsg, 'error');
+            }
+        } catch (error) {
             console.error('❌ Screenshot error:', error);
             this.showStatus('❌ Screenshot error: ' + error.message, 'error');
         }
     }
 
     showScreenshotPreview(dataUrl) {
-        const resultContent = document.getElementById('resultContent');
-        resultContent.innerHTML = `
-            <div style="text-align: center; margin-bottom: 15px;">
-                <img src="${dataUrl}" style="max-width: 100%; border-radius: 8px; border: 2px solid #e5e7eb;">
-                <p style="font-size: 0.8em; color: #666; margin-top: 8px;">📸 Captured Screenshot</p>
-            </div>
-            <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #4f46e5;">
-                <strong>🔍 What would you like to know about this screenshot?</strong><br><br>
-                <textarea id="screenshotQuery" placeholder="Describe what you see, ask questions about the content, or request analysis..." style="width: 100%; height: 80px; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px; margin-bottom: 10px;"></textarea>
-                <button id="analyzeScreenshotBtn" style="width: 100%; padding: 12px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
-                    🤖 Analyze with AI
-                </button>
-                <button id="simpleAnalyzeBtn" style="width: 100%; padding: 10px; background: #2196f3; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; margin-top: 8px;">
-                    🔍 Quick Analysis
-                </button>
+        const previewImg = document.getElementById('screenshot-img');
+        const previewDiv = document.getElementById('screenshot-preview');
+        
+        previewImg.src = dataUrl;
+        previewDiv.style.display = 'block';
+        
+        // Store the screenshot data
+        this.currentScreenshotData = dataUrl;
+    }
+
+    async handleScreenshotAnalysis() {
+        if (!this.currentScreenshotData) {
+            await this.captureScreenshot();
+            return;
+        }
+
+        const query = document.getElementById('screenshot-query').value.trim();
+        if (!query) {
+            this.showStatus('Please enter a question or description.', 'error');
+            return;
+        }
+
+        // Show loader in screenshot response area
+        const responseContainer = document.getElementById('screenshot-response');
+        responseContainer.innerHTML = `
+            <div class="loading-container">
+                <div class="loader"></div>
+                <p>🤖 Analyzing screenshot...</p>
             </div>
         `;
+        responseContainer.style.display = 'block';
+
+        await this.analyzeScreenshotWithAI(this.currentScreenshotData, query);
+    }
+
+    async handleQuickScreenshotAnalysis() {
+        if (!this.currentScreenshotData) {
+            await this.captureScreenshot();
+            return;
+        }
         
-        // Show the results section
-        document.getElementById('resultsSection').style.display = 'block';
-        document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
-        
-        // Store the screenshot data for later use
-        this.currentScreenshotData = dataUrl;
-        
-        // Add event listeners for the buttons
-        document.getElementById('analyzeScreenshotBtn').addEventListener('click', async () => {
-            const query = document.getElementById('screenshotQuery').value.trim();
-            await this.analyzeScreenshotWithAI(dataUrl, query || 'Analyze this screenshot and describe what you see in detail.');
-        });
-        
-        document.getElementById('simpleAnalyzeBtn').addEventListener('click', async () => {
-            await this.analyzeScreenshotWithAI(dataUrl, 'Analyze this screenshot and describe what you see. Focus on text content, layout, colors, and important visual elements.');
-        });
+        await this.analyzeScreenshotWithAI(this.currentScreenshotData, 'Analyze this screenshot and describe what you see. Focus on text content, layout, colors, and important visual elements.');
     }
 
     async analyzeScreenshotWithAI(dataUrl, query) {
-    this.showStatus('🤖 Analyzing with AI...', 'success');
+        this.showStatus('🤖 Analyzing with AI...', 'info');
     
     try {
-        // Use your backend API instead of Chrome local AI
         const analysis = await this.analyzeImageWithBackend(dataUrl, query);
-        
-        const resultContent = document.getElementById('resultContent');
-        if (resultContent) {
-            resultContent.innerHTML = `
-                <div style="text-align: center; margin-bottom: 15px;">
-                    <img src="${dataUrl}" style="max-width: 100%; border-radius: 8px; border: 2px solid #e5e7eb;">
-                    <p style="font-size: 0.8em; color: #666; margin-top: 8px;">📸 Captured Screenshot</p>
-                </div>
-                <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #4f46e5;">
-                    <strong>🔍 AI Analysis:</strong><br><br>
-                    <div style="white-space: pre-wrap; line-height: 1.6; background: white; padding: 15px; border-radius: 6px; border: 1px solid #e0e0e0;">${analysis}</div>
-                    <div style="display: flex; gap: 10px; margin-top: 15px;">
-                        <button id="copyAnalysisBtn" style="flex: 1; padding: 10px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
-                            📋 Copy Analysis
-                        </button>
-                        <button id="newAnalysisBtn" style="flex: 1; padding: 10px; background: #2196f3; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
-                            🔄 New Analysis
-                        </button>
-                    </div>
-                </div>
-            `;
-            
-            // Add event listeners for the new buttons
-            document.getElementById('copyAnalysisBtn').addEventListener('click', () => {
-                navigator.clipboard.writeText(analysis);
-                this.showStatus('✓ Analysis copied to clipboard!', 'success');
-            });
-            
-            document.getElementById('newAnalysisBtn').addEventListener('click', () => {
-                this.showScreenshotPreview(this.currentScreenshotData);
-            });
+            this.showScreenshotResponse(analysis);
+        } catch (error) {
+            this.showStatus('❌ AI analysis failed: ' + error.message, 'error');
         }
-        
-    } catch (error) {
-        this.showStatus('❌ AI analysis failed: ' + error.message, 'error');
     }
-}
 
-// Add this method to call your backend API
+    showScreenshotResponse(analysis) {
+        const responseContainer = document.getElementById('screenshot-response');
+        responseContainer.style.display = 'block';
+        responseContainer.innerHTML = `
+            <div class="response-header">
+                <h4>🔍 AI Analysis</h4>
+                <div class="response-actions">
+                    <button class="copy-btn" onclick="navigator.clipboard.writeText('${analysis.replace(/'/g, "\\'")}')">📋 Copy</button>
+                </div>
+            </div>
+            <div class="response-content">${analysis}</div>
+        `;
+    }
+
 async analyzeImageWithBackend(imageDataUrl, query) {
-    console.log('🌐 Calling backend for image analysis...');
-    
     const response = await fetch(`${BACKEND_URL}/api/multimodal/analyze-image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -576,6 +653,945 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         if (profileName === 'dyslexia') {
             body.style.fontFamily = "'OpenDyslexic', 'Comic Sans MS', sans-serif";
         }
+    }
+
+    // === FEATURE INTERFACE MANAGEMENT ===
+    showFeatureInterface(featureName) {
+        // Hide main content
+        document.getElementById('main-content').style.display = 'none';
+        
+        // Show the specific feature interface
+        const interfaceElement = document.getElementById(`${featureName}-interface`);
+        if (interfaceElement) {
+            interfaceElement.style.display = 'block';
+            
+            // Load content for the feature
+            this.loadFeatureContent(featureName);
+        }
+    }
+
+    hideFeatureInterface(featureName) {
+        // Hide the feature interface
+        const interfaceElement = document.getElementById(`${featureName}-interface`);
+        if (interfaceElement) {
+            interfaceElement.style.display = 'none';
+        }
+        
+        // Show main content
+        document.getElementById('main-content').style.display = 'block';
+    }
+
+    async loadFeatureContent(featureName) {
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            
+            switch(featureName) {
+                case 'prompt':
+                    // Prompt interface doesn't need pre-loaded text
+                    break;
+                    
+                case 'proofread':
+                case 'summarize':
+                case 'translate':
+                case 'simplify':
+                case 'voice-reader':
+                    await this.loadTextForFeature(featureName, tab.id);
+                    this.initializeVoiceReader();
+                    break;
+                    
+                case 'ocr-translate':
+                    // Initialize OCR interface
+                    this.initializeOCRInterface();
+                    break;
+                    
+                case 'screenshot':
+                    // Initialize screenshot interface
+                    this.initializeScreenshotInterface();
+                    break;
+                    
+                case 'insights':
+                    // Load insights
+                    await this.loadInsights();
+                    break;
+            }
+        } catch (error) {
+            console.warn('Could not load content for feature:', featureName, error);
+        }
+    }
+
+    async loadTextForFeature(featureName, tabId) {
+        try {
+            // Get selected text first
+            const selectedResponse = await chrome.tabs.sendMessage(tabId, { type: 'GET_SELECTED_TEXT' });
+            const selectedText = selectedResponse?.text || '';
+            
+            const previewElement = document.getElementById(`${featureName}-preview`);
+            if (previewElement) {
+                if (selectedText) {
+                    // Show selected text by default
+                    previewElement.textContent = selectedText;
+                } else {
+                    // Show placeholder message
+                    previewElement.textContent = 'No text selected. Please select text on the webpage or use "Whole Page" option.';
+                }
+            }
+        } catch (error) {
+            console.warn('Could not load text for feature:', featureName, error);
+            const previewElement = document.getElementById(`${featureName}-preview`);
+            if (previewElement) {
+                previewElement.textContent = 'Could not load text from the webpage.';
+            }
+        }
+    }
+
+    // === FEATURE HANDLERS ===
+    async handlePromptSubmit() {
+        const prompt = document.getElementById('prompt-input').value.trim();
+        if (!prompt) {
+            this.showStatus('Please enter a prompt.', 'error');
+            return;
+        }
+
+        const responseContainer = document.getElementById('prompt-response');
+        responseContainer.innerHTML = `
+            <div class="loading-container">
+                <div class="loader"></div>
+                <p>🤖 Processing with AI...</p>
+            </div>
+        `;
+        responseContainer.style.display = 'block';
+        
+        this.showStatus('🤖 Processing with AI...', 'info');
+        
+        try {
+            const response = await this.callHybridAPI('/api/hybrid/prompt', {
+                prompt: prompt,
+                accessibilityMode: currentProfile,
+                userId: userId
+            });
+
+            if (response.success) {
+                this.showPromptResponse(response.response);
+            } else {
+                this.showStatus('Error: ' + response.error, 'error');
+            }
+        } catch (error) {
+            this.showStatus('Error: ' + error.message, 'error');
+            responseContainer.style.display = 'none';
+        }
+    }
+
+    async handleProofreadSubmit() {
+        const previewElement = document.getElementById('proofread-preview');
+        const textToProofread = previewElement.textContent.trim();
+        
+        if (!textToProofread || textToProofread === 'No text selected. Please select text on the webpage first.') {
+            this.showStatus('Please select text on the webpage first.', 'error');
+            return;
+        }
+
+        const responseContainer = document.getElementById('proofread-response');
+        responseContainer.innerHTML = `
+            <div class="loading-container">
+                <div class="loader"></div>
+                <p>🔍 Checking grammar and style...</p>
+            </div>
+        `;
+        responseContainer.style.display = 'block';
+
+        this.showStatus('🔍 Checking grammar...', 'info');
+        
+        try {
+            const prompt = `Proofread the following text for grammar, spelling, punctuation, and style improvements. Provide the corrected version and highlight any major issues found:\n\nSelected text: ${textToProofread}`;
+            
+            const response = await this.callHybridAPI('/api/hybrid/prompt', {
+                prompt: prompt,
+                accessibilityMode: currentProfile,
+                userId: userId
+            });
+
+            if (response.success) {
+                this.showProofreadResponse(response.response);
+            } else {
+                this.showStatus('Error: ' + response.error, 'error');
+            }
+        } catch (error) {
+            this.showStatus('Error: ' + error.message, 'error');
+            responseContainer.style.display = 'none';
+        }
+    }
+
+    async handleSummarizeSubmit() {
+        const previewElement = document.getElementById('summarize-preview');
+        const textToSummarize = previewElement.textContent.trim();
+        
+        if (!textToSummarize || textToSummarize === 'No text selected. Please select text on the webpage first.') {
+            this.showStatus('Please select text on the webpage first.', 'error');
+            return;
+        }
+
+        const summaryLength = document.getElementById('summary-length').value;
+        const responseContainer = document.getElementById('summarize-response');
+        responseContainer.innerHTML = `
+            <div class="loading-container">
+                <div class="loader"></div>
+                <p>📄 Summarizing content...</p>
+            </div>
+        `;
+        responseContainer.style.display = 'block';
+        this.showStatus('📄 Summarizing content...', 'info');
+
+        try {
+            const prompt = `Summarize the following document into a ${summaryLength} summary:\n\nDocument text: ${textToSummarize}`;
+            
+            const response = await this.callHybridAPI('/api/hybrid/prompt', {
+                prompt: prompt,
+                accessibilityMode: currentProfile,
+                userId: userId
+            });
+
+            if (response.success) {
+                this.showSummarizeResponse(response.response);
+            } else {
+                this.showStatus('Error: ' + response.error, 'error');
+                responseContainer.style.display = 'none';
+            }
+        } catch (error) {
+            this.showStatus('Error: ' + error.message, 'error');
+            responseContainer.style.display = 'none';
+        }
+    }
+
+    async handleTranslateSubmit() {
+        const previewElement = document.getElementById('translate-preview');
+        const textToTranslate = previewElement.textContent.trim();
+        
+        if (!textToTranslate || textToTranslate === 'No text selected. Please select text on the webpage first.') {
+            this.showStatus('Please select text on the webpage first.', 'error');
+            return;
+        }
+
+        const targetLanguage = document.getElementById('target-language').value;
+        const responseContainer = document.getElementById('translate-response');
+        responseContainer.innerHTML = `
+            <div class="loading-container">
+                <div class="loader"></div>
+                <p>🌐 Translating to ${targetLanguage}...</p>
+            </div>
+        `;
+        responseContainer.style.display = 'block';
+        this.showStatus('🌐 Translating...', 'info');
+
+        try {
+            const prompt = `Translate the following text to ${targetLanguage}. Provide only the translation:\n\n${textToTranslate}`;
+            
+            const response = await this.callHybridAPI('/api/hybrid/prompt', {
+                prompt: prompt,
+                accessibilityMode: currentProfile,
+                userId: userId
+            });
+
+            if (response.success) {
+                this.showTranslateResponse(response.response);
+            } else {
+                this.showStatus('Error: ' + response.error, 'error');
+                responseContainer.style.display = 'none';
+            }
+        } catch (error) {
+            this.showStatus('Error: ' + error.message, 'error');
+            responseContainer.style.display = 'none';
+        }
+    }
+
+    async handleSimplifySubmit() {
+        const previewElement = document.getElementById('simplify-preview');
+        const textToSimplify = previewElement.textContent.trim();
+        
+        if (!textToSimplify || textToSimplify === 'No text selected. Please select text on the webpage first.') {
+            this.showStatus('Please select text on the webpage first.', 'error');
+            return;
+        }
+
+        const simplifyLevel = document.getElementById('simplify-level').value;
+        const responseContainer = document.getElementById('simplify-response');
+        responseContainer.innerHTML = `
+            <div class="loading-container">
+                <div class="loader"></div>
+                <p>📝 Simplifying text (${simplifyLevel})...</p>
+            </div>
+        `;
+        responseContainer.style.display = 'block';
+        this.showStatus('📝 Simplifying text...', 'info');
+
+        try {
+            const response = await this.callHybridAPI('/api/hybrid/simplify', {
+                text: textToSimplify,
+                level: simplifyLevel,
+                accessibilityMode: currentProfile,
+                userId: userId
+            });
+
+            if (response.success) {
+                this.showSimplifyResponse(response.simplified);
+            } else {
+                this.showStatus('Error: ' + response.error, 'error');
+                responseContainer.style.display = 'none';
+            }
+        } catch (error) {
+            this.showStatus('Error: ' + error.message, 'error');
+            responseContainer.style.display = 'none';
+        }
+    }
+
+    async handleVoiceReadSubmit() {
+        const previewElement = document.getElementById('voice-reader-preview');
+        let textToRead = previewElement?.textContent.trim() || '';
+
+        const speed = parseFloat(document.getElementById('voice-speed').value);
+        const pitch = parseFloat(document.getElementById('voice-pitch').value);
+        const volume = parseFloat(document.getElementById('voice-volume').value);
+
+        const statusEl = document.getElementById('voice-reader-status');
+        if (statusEl) statusEl.textContent = '';
+
+        // If no preview text is loaded yet, start reading a quick snippet (selected text or title) immediately
+        if (!textToRead || textToRead === 'No text available. Please select text or ensure the page has readable content.') {
+            // Try to get selected text quickly, otherwise use document title as a quick-start
+            this.showStatus('🔊 Preparing text... starting immediately with a quick snippet.', 'info');
+            if (statusEl) statusEl.textContent = 'Preparing: starting with a short preview...';
+
+            try {
+                const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                if (tab && tab.id) {
+                    // Try get selected text first (fast)
+                    chrome.tabs.sendMessage(tab.id, { type: 'GET_SELECTED_TEXT' }, (selResp) => {
+                        const sel = selResp?.text?.trim();
+                        const quickText = sel && sel.length > 20 ? sel : (tab.title || 'Reading page content');
+                        // Start quick utterance
+                        this._startUtterance(quickText, { speed, pitch, volume });
+                    });
+
+                    // Meanwhile, fetch full page text and when received, speak it (append)
+                    chrome.tabs.sendMessage(tab.id, { type: 'GET_PAGE_TEXT' }, (pageResp) => {
+                        const full = pageResp?.text?.trim();
+                        if (full && full.length > 0) {
+                            // If currently speaking a quick snippet, let it finish then speak full text
+                            // Or immediately queue the full text as the next utterance
+                            this._startUtterance(full, { speed, pitch, volume }, { queue: true });
+                            if (statusEl) statusEl.textContent = 'Reading full page...';
+                        } else {
+                            if (statusEl) statusEl.textContent = 'No page text available.';
+                        }
+                    });
+                } else {
+                    // fallback: speak document title
+                    this._startUtterance(document.title || 'Reading content', { speed, pitch, volume });
+                }
+            } catch (err) {
+                this.showStatus('Error preparing text: ' + (err.message || err), 'error');
+            }
+
+            return;
+        }
+
+        // If preview text exists, start reading it immediately
+        if (textToRead && textToRead.length > 0) {
+            this.showStatus('🔊 Starting voice reading...', 'info');
+            if (statusEl) statusEl.textContent = 'Reading...';
+            try {
+                this._startUtterance(textToRead, { speed, pitch, volume });
+            } catch (error) {
+                this.showStatus('Error: ' + error.message, 'error');
+            }
+        }
+    }
+
+    handleVoiceStop() {
+        if ('speechSynthesis' in window) {
+            speechSynthesis.cancel();
+            this.showStatus('⏹️ Voice reading stopped.', 'info');
+            document.getElementById('voice-pause-btn').disabled = true;
+            document.getElementById('voice-stop-btn').disabled = true;
+            document.getElementById('voice-read-submit').disabled = false;
+            this.isVoicePaused = false;
+        }
+    }
+
+    // Helper to start a speech utterance. If options.queue is true, will queue after current speech.
+    _startUtterance(text, { speed = 1.0, pitch = 1.0, volume = 1.0 } = {}, options = {}) {
+        if (!('speechSynthesis' in window)) {
+            this.showStatus('Speech synthesis not supported in this browser.', 'error');
+            return;
+        }
+
+        try {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = speed;
+            utterance.pitch = pitch;
+            utterance.volume = volume;
+
+            const voiceSelect = document.getElementById('voice-select');
+            if (voiceSelect && voiceSelect.value !== 'auto') {
+                const voices = speechSynthesis.getVoices();
+                const selectedVoice = voices.find(v => v.name === voiceSelect.value);
+                if (selectedVoice) utterance.voice = selectedVoice;
+            }
+
+            utterance.onstart = () => {
+                this.showStatus('🔊 Reading aloud...', 'success');
+                const pauseBtn = document.getElementById('voice-pause-btn');
+                const stopBtn = document.getElementById('voice-stop-btn');
+                const readBtn = document.getElementById('voice-read-submit');
+                if (pauseBtn) pauseBtn.disabled = false;
+                if (stopBtn) stopBtn.disabled = false;
+                if (readBtn) readBtn.disabled = true;
+            };
+
+            utterance.onend = () => {
+                // If queued utterances remain, speechSynthesis will continue; otherwise restore UI
+                if (!speechSynthesis.speaking) {
+                    this.showStatus('✅ Reading completed.', 'success');
+                    const pauseBtn = document.getElementById('voice-pause-btn');
+                    const stopBtn = document.getElementById('voice-stop-btn');
+                    const readBtn = document.getElementById('voice-read-submit');
+                    if (pauseBtn) pauseBtn.disabled = true;
+                    if (stopBtn) stopBtn.disabled = true;
+                    if (readBtn) readBtn.disabled = false;
+                    this.isVoicePaused = false;
+                }
+            };
+
+            utterance.onerror = (e) => {
+                this.showStatus('Error during speech: ' + (e.error || e.message || 'unknown'), 'error');
+                const pauseBtn = document.getElementById('voice-pause-btn');
+                const stopBtn = document.getElementById('voice-stop-btn');
+                const readBtn = document.getElementById('voice-read-submit');
+                if (pauseBtn) pauseBtn.disabled = true;
+                if (stopBtn) stopBtn.disabled = true;
+                if (readBtn) readBtn.disabled = false;
+            };
+
+            if (options.queue) {
+                // Add slight delay before enqueuing to ensure ordering
+                setTimeout(() => speechSynthesis.speak(utterance), 200);
+            } else {
+                speechSynthesis.speak(utterance);
+            }
+
+            // Keep reference to current utterance
+            this.currentUtterance = utterance;
+        } catch (err) {
+            console.error('Failed to start utterance:', err);
+            this.showStatus('Error starting speech: ' + (err.message || err), 'error');
+        }
+    }
+
+    async handleOCRTranslateSubmit() {
+        const imageInput = document.getElementById('ocr-image-input');
+        const uploadSection = document.getElementById('ocr-upload-section');
+        const screenshotSection = document.getElementById('ocr-screenshot-section');
+        
+        let imageData = null;
+        
+        // Determine source
+        if (uploadSection.style.display !== 'none' && imageInput.files && imageInput.files.length > 0) {
+            // Upload mode
+            const file = imageInput.files[0];
+            imageData = await this.fileToBase64(file);
+        } else if (screenshotSection.style.display !== 'none' && this.currentOCRScreenshot) {
+            // Screenshot mode
+            imageData = this.currentOCRScreenshot;
+        } else {
+            this.showStatus('Please upload an image or take a screenshot first.', 'error');
+            return;
+        }
+
+        const targetLanguage = document.getElementById('ocr-target-language').value;
+        const responseContainer = document.getElementById('ocr-translate-response');
+        const responseContentEl = document.getElementById('ocr-response-content');
+        if (responseContentEl) responseContentEl.textContent = '';
+        responseContainer.style.display = 'block';
+        // show loader at top of response container
+        responseContainer.insertAdjacentHTML('afterbegin', `
+            <div class="loading-container ocr-loader">
+                <div class="loader"></div>
+                <p>🖼️ Extracting and translating to ${targetLanguage}...</p>
+            </div>
+        `);
+        this.showStatus('🖼️ Extracting and translating text...', 'info');
+
+        try {
+            const response = await this.callBackendAPI('/api/multimodal/ocr-translate', {
+                image: imageData,
+                targetLanguage: targetLanguage,
+                userId: userId
+            });
+
+            // Remove loader
+            const loaderEl = responseContainer.querySelector('.ocr-loader');
+            if (loaderEl) loaderEl.remove();
+
+            if (response.success) {
+                this.showOCRTranslateResponse(response.result);
+            } else {
+                this.showStatus('Error: ' + response.error, 'error');
+            }
+        } catch (error) {
+            // Remove loader on error
+            const loaderEl = responseContainer.querySelector('.ocr-loader');
+            if (loaderEl) loaderEl.remove();
+            this.showStatus('Error: ' + error.message, 'error');
+        }
+    }
+
+    fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
+    handleOCRImageUpload(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const previewImg = document.getElementById('ocr-preview-img');
+                previewImg.src = e.target.result;
+                
+                document.getElementById('ocr-upload-area').style.display = 'none';
+                document.getElementById('ocr-image-preview').style.display = 'block';
+                document.getElementById('ocr-translate-submit').disabled = false;
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    removeOCRImage() {
+        document.getElementById('ocr-image-input').value = '';
+        document.getElementById('ocr-upload-area').style.display = 'block';
+        document.getElementById('ocr-image-preview').style.display = 'none';
+        document.getElementById('ocr-translate-submit').disabled = true;
+    }
+
+    // === RESPONSE DISPLAY METHODS ===
+    showPromptResponse(response) {
+        const responseContainer = document.getElementById('prompt-response');
+        responseContainer.style.display = 'block';
+        responseContainer.innerHTML = `
+            <div class="response-header">
+                <h4>🤖 AI Response</h4>
+                <div class="response-actions">
+                    <button class="copy-btn" onclick="navigator.clipboard.writeText('${response.replace(/'/g, "\\'")}')">📋 Copy</button>
+                </div>
+            </div>
+            <div class="response-content">${response}</div>
+        `;
+    }
+
+    showProofreadResponse(response) {
+        const responseContainer = document.getElementById('proofread-response');
+        responseContainer.style.display = 'block';
+        responseContainer.innerHTML = `
+            <div class="response-header">
+                <h4>🔤 Proofreading Results</h4>
+                <div class="response-actions">
+                    <button class="copy-btn" onclick="navigator.clipboard.writeText('${response.replace(/'/g, "\\'")}')">📋 Copy</button>
+                </div>
+            </div>
+            <div class="response-content">${response}</div>
+        `;
+    }
+
+    showSummarizeResponse(response) {
+        const responseContainer = document.getElementById('summarize-response');
+        responseContainer.style.display = 'block';
+        responseContainer.innerHTML = `
+            <div class="response-header">
+                <h4>📄 Summary</h4>
+                <div class="response-actions">
+                    <button class="copy-btn" onclick="navigator.clipboard.writeText('${response.replace(/'/g, "\\'")}')">📋 Copy</button>
+                </div>
+            </div>
+            <div class="response-content">${response}</div>
+        `;
+    }
+
+    showTranslateResponse(response) {
+        const responseContainer = document.getElementById('translate-response');
+        responseContainer.style.display = 'block';
+        responseContainer.innerHTML = `
+            <div class="response-header">
+                <h4>🌐 Translation</h4>
+                <div class="response-actions">
+                    <button class="copy-btn" onclick="navigator.clipboard.writeText('${response.replace(/'/g, "\\'")}')">📋 Copy</button>
+                </div>
+            </div>
+            <div class="response-content">${response}</div>
+        `;
+    }
+
+    showSimplifyResponse(response) {
+        const responseContainer = document.getElementById('simplify-response');
+        responseContainer.style.display = 'block';
+        responseContainer.innerHTML = `
+            <div class="response-header">
+                <h4>📝 Simplified Text</h4>
+                <div class="response-actions">
+                    <button class="copy-btn" onclick="navigator.clipboard.writeText('${response.replace(/'/g, "\\'")}')">📋 Copy</button>
+                </div>
+            </div>
+            <div class="response-content">${response}</div>
+        `;
+    }
+
+    showOCRTranslateResponse(response) {
+        const responseContainer = document.getElementById('ocr-translate-response');
+        const responseContent = document.getElementById('ocr-response-content');
+        
+        responseContainer.style.display = 'block';
+        responseContent.textContent = response;
+    }
+
+    copyOCRResponse() {
+        const responseContent = document.getElementById('ocr-response-content');
+        if (responseContent) {
+            navigator.clipboard.writeText(responseContent.textContent);
+            this.showStatus('✓ OCR text copied to clipboard!', 'success');
+        }
+    }
+
+    clearOCRResponse() {
+        const responseContainer = document.getElementById('ocr-translate-response');
+        responseContainer.style.display = 'none';
+        this.showStatus('🗑️ OCR response cleared.', 'info');
+    }
+
+    // === UTILITY METHODS ===
+    async callHybridAPI(endpoint, data) {
+        try {
+            const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Backend error: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            // If backend says to use on-device, delegate to background script
+            if (result.source === 'on-device') {
+                console.log('✅ Backend instructed to use On-Device AI. DELEGATING to Background Service Worker...');
+                
+                try {
+                    const localResponse = await chrome.runtime.sendMessage({
+                        type: 'RUN_LOCAL_GEMINI',
+                        prompt: data.prompt || this.generatePromptFromData(data)
+                    });
+
+                    if (localResponse && localResponse.success) {
+                        console.log('✅ Local AI responded from background.');
+                        return { success: true, response: localResponse.response };
+                    } else {
+                        throw new Error(localResponse?.error || 'Background local AI execution failed.');
+                    }
+                } catch (backgroundError) {
+                    console.error('❌ Failed to communicate with background local AI:', backgroundError);
+                    console.log('⚠️ Falling through to Cloud Fallback...');
+                    
+                    // Fallback: Force a cloud call
+                    const cloudData = await fetch(`${BACKEND_URL}${endpoint}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...data, useCloud: true })
+                    });
+                    
+                    if (!cloudData.ok) {
+                        throw new Error(`Cloud fallback failed: ${cloudData.status}`);
+                    }
+                    
+                    const cloudResult = await cloudData.json();
+                    console.log('✅ Cloud AI responded (Fallback)');
+                    return cloudResult;
+                }
+            }
+            
+            return result;
+        } catch (error) {
+            console.error('Hybrid API call failed:', error);
+            throw error;
+        }
+    }
+
+    async callBackendAPI(endpoint, data) {
+        try {
+            const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Backend error: ${response.status}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            console.error('Backend API call failed:', error);
+            throw error;
+        }
+    }
+
+    generatePromptFromData(data) {
+        // Generate appropriate prompts based on the feature type
+        if (data.text) {
+            if (data.level) {
+                return `Simplify this text for someone with ${data.level} reading needs:\n\n${data.text}`;
+            } else {
+                return `Process the following text:\n\n${data.text}`;
+            }
+        }
+        return data.prompt || 'Please help me with this request.';
+    }
+
+    // === TEXT SOURCE MANAGEMENT ===
+    async switchTextSource(featureName, source) {
+        try {
+            // Try multiple id patterns to support 'voice-selected-btn' vs 'voice-reader-selected-btn'
+            const bases = [featureName, featureName.split('-')[0]];
+
+            let selectedBtn = null;
+            let pageBtn = null;
+            for (const b of bases) {
+                if (!selectedBtn) selectedBtn = document.getElementById(`${b}-selected-btn`) || document.getElementById(`${b}-selected`);
+                if (!pageBtn) pageBtn = document.getElementById(`${b}-page-btn`) || document.getElementById(`${b}-page`);
+            }
+
+            if (!selectedBtn || !pageBtn) {
+                console.error('Source buttons not found for feature:', featureName);
+                return;
+            }
+
+            selectedBtn.classList.toggle('active', source === 'selected');
+            pageBtn.classList.toggle('active', source === 'page');
+
+            // Load appropriate text
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab) {
+                console.error('No active tab found');
+                return;
+            }
+
+            let text = '';
+
+            if (source === 'selected') {
+                const response = await chrome.tabs.sendMessage(tab.id, { type: 'GET_SELECTED_TEXT' });
+                text = response?.text || '';
+            } else {
+                const response = await chrome.tabs.sendMessage(tab.id, { type: 'GET_PAGE_TEXT' });
+                text = response?.text || '';
+            }
+
+            // Support multiple preview id patterns as well
+            const previewCandidates = [`${featureName}-preview`, `${featureName.split('-')[0]}-preview`, `${featureName}-text-preview`];
+            let previewElement = null;
+            for (const id of previewCandidates) {
+                const el = document.getElementById(id);
+                if (el) { previewElement = el; break; }
+            }
+
+            if (previewElement) {
+                previewElement.textContent = text || `No ${source} text available.`;
+            } else {
+                console.error('Preview element not found for feature:', featureName);
+            }
+        } catch (error) {
+            console.warn('Could not switch text source:', error);
+            // Show a user-friendly error in the UI
+            const previewElement = document.getElementById(`${featureName}-preview`);
+            if (previewElement) {
+                previewElement.textContent = 'Error loading text content. Please try again.';
+            }
+        }
+    }
+
+    // === OCR SOURCE MANAGEMENT ===
+    switchOCRSource(source) {
+        const uploadBtn = document.getElementById('ocr-upload-btn');
+        const screenshotBtn = document.getElementById('ocr-screenshot-btn');
+        const uploadSection = document.getElementById('ocr-upload-section');
+        const screenshotSection = document.getElementById('ocr-screenshot-section');
+        
+        uploadBtn.classList.toggle('active', source === 'upload');
+        screenshotBtn.classList.toggle('active', source === 'screenshot');
+        
+        uploadSection.style.display = source === 'upload' ? 'block' : 'none';
+        screenshotSection.style.display = source === 'screenshot' ? 'block' : 'none';
+    }
+
+    // === OCR SCREENSHOT FUNCTIONALITY ===
+    async captureOCRImage() {
+        try {
+            this.showStatus('📸 Capturing screenshot...', 'info');
+            
+            const response = await new Promise((resolve, reject) => {
+                chrome.runtime.sendMessage({
+                    type: 'CAPTURE_SCREENSHOT'
+                }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        reject(new Error(chrome.runtime.lastError.message));
+                        return;
+                    }
+                    resolve(response);
+                });
+            });
+
+            if (response && response.success) {
+                this.showOCRScreenshotPreview(response.dataUrl);
+                this.showStatus('✅ Screenshot captured!', 'success');
+            } else {
+                const errorMsg = response ? response.error : 'Unknown error';
+                this.showStatus('❌ Failed to capture screenshot: ' + errorMsg, 'error');
+            }
+        } catch (error) {
+            console.error('❌ Screenshot error:', error);
+            this.showStatus('❌ Screenshot error: ' + error.message, 'error');
+        }
+    }
+
+    showOCRScreenshotPreview(dataUrl) {
+        const previewImg = document.getElementById('ocr-screenshot-img');
+        const previewDiv = document.getElementById('ocr-screenshot-preview');
+        
+        previewImg.src = dataUrl;
+        previewDiv.style.display = 'block';
+        
+        // Enable the submit button
+        document.getElementById('ocr-translate-submit').disabled = false;
+        
+        // Store the screenshot data
+        this.currentOCRScreenshot = dataUrl;
+    }
+
+    removeOCRScreenshot() {
+        const previewDiv = document.getElementById('ocr-screenshot-preview');
+        previewDiv.style.display = 'none';
+        document.getElementById('ocr-translate-submit').disabled = true;
+        this.currentOCRScreenshot = null;
+    }
+
+    initializeOCRInterface() {
+        // Reset OCR interface
+        document.getElementById('ocr-upload-section').style.display = 'block';
+        document.getElementById('ocr-screenshot-section').style.display = 'none';
+        document.getElementById('ocr-image-preview').style.display = 'none';
+        document.getElementById('ocr-screenshot-preview').style.display = 'none';
+        document.getElementById('ocr-translate-submit').disabled = true;
+        
+        // Reset source buttons
+        document.getElementById('ocr-upload-btn').classList.add('active');
+        document.getElementById('ocr-screenshot-btn').classList.remove('active');
+    }
+
+    // === VOICE READER ENHANCEMENTS ===
+    initializeVoiceReader() {
+        // Populate voice options
+        const voiceSelect = document.getElementById('voice-select');
+        voiceSelect.innerHTML = '<option value="auto">Auto (Best Available)</option>';
+        
+        // Load available voices
+        const loadVoices = () => {
+            const voices = speechSynthesis.getVoices();
+            voices.forEach(voice => {
+                const option = document.createElement('option');
+                option.value = voice.name;
+                option.textContent = `${voice.name} (${voice.lang})`;
+                voiceSelect.appendChild(option);
+            });
+        };
+        
+        // Load voices immediately and when they become available
+        loadVoices();
+        speechSynthesis.onvoiceschanged = loadVoices;
+    }
+
+    updateVoiceControl(type, value) {
+        const valueElement = document.getElementById(`voice-${type}-value`);
+        if (valueElement) {
+            if (type === 'volume') {
+                valueElement.textContent = Math.round(value * 100) + '%';
+            } else if (type === 'speed') {
+                valueElement.textContent = value + 'x';
+            } else {
+                valueElement.textContent = value;
+            }
+        }
+    }
+
+    async handleVoicePause() {
+        if (this.isVoicePaused) {
+            // Resume
+            if (this.currentUtterance) {
+                speechSynthesis.resume();
+                this.isVoicePaused = false;
+                document.getElementById('voice-pause-btn').textContent = '⏸️ Pause';
+                this.showStatus('🔊 Resumed reading...', 'success');
+            }
+        } else {
+            // Pause
+            if (this.currentUtterance) {
+                speechSynthesis.pause();
+                this.isVoicePaused = true;
+                document.getElementById('voice-pause-btn').textContent = '▶️ Resume';
+                this.showStatus('⏸️ Paused reading...', 'info');
+            }
+        }
+    }
+
+    // === INSIGHTS FUNCTIONALITY ===
+    async loadInsights() {
+        const loadingDiv = document.getElementById('insights-loading');
+        const contentDiv = document.getElementById('insights-content');
+        
+        loadingDiv.style.display = 'block';
+        contentDiv.style.display = 'none';
+        
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/analytics/insights/${userId}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                this.displayInsights(data.insights, data.session_count);
+            } else {
+                this.showInsightsError(data.error || 'Failed to load insights');
+            }
+        } catch (error) {
+            this.showInsightsError('Error: ' + error.message);
+        } finally {
+            loadingDiv.style.display = 'none';
+            contentDiv.style.display = 'block';
+        }
+    }
+
+    displayInsights(insights, sessionCount) {
+        const sessionInfo = document.getElementById('insights-session-info');
+        const insightsText = document.getElementById('insights-text');
+        
+        sessionInfo.textContent = `Sessions Analyzed: ${sessionCount}`;
+        insightsText.textContent = insights;
+    }
+
+    showInsightsError(error) {
+        const sessionInfo = document.getElementById('insights-session-info');
+        const insightsText = document.getElementById('insights-text');
+        
+        sessionInfo.textContent = 'Error Loading Insights';
+        insightsText.textContent = error;
     }
 }
 

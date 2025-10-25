@@ -96,6 +96,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return false;
     }
     
+        if (message.type === 'GET_SELECTED_TEXT') {
+            const selectedText = window.getSelection().toString().trim();
+            sendResponse({ text: selectedText });
+            return true;
+        }
+
+        if (message.type === 'GET_PAGE_TEXT') {
+            const pageText = extractMainContent();
+            sendResponse({ text: pageText });
+            return true;
+        }
+    
     return false;
 });
 
@@ -151,6 +163,27 @@ function removeExistingOverlays() {
     overlays.forEach(overlay => overlay.remove());
 }
 
+
+function buildAccessibilityPrompt(profile) {
+    let basePrompt = "You are ChromeAI Plus, an intelligent assistant. Be concise and helpful.";
+
+    if (!profile) {
+        return basePrompt;
+    }
+
+    switch (profile) {
+        case 'dyslexia':
+            return basePrompt + " When generating text, use clear, simple language, short sentences, and avoid long, complex paragraphs to aid reading for users with dyslexia.";
+        case 'adhd':
+            return basePrompt + " Summarize key information using bullet points or numbered lists. Be direct and avoid unnecessary jargon to maintain user focus (ADHD profile).";
+        case 'visual_impairment':
+            return basePrompt + " Respond with highly structured, clear formatting using markdown headers and lists for easy screen-reader parsing (Visual Impairment profile).";
+        case 'non_native':
+            return basePrompt + " Use very simple English, explain complex terms, and translate key concepts if possible (Non-Native Speaker profile).";
+        default:
+            return basePrompt;
+    }
+}
 // ============================================
 // UNIVERSAL AI HANDLER (HYBRID-FIRST: On-Device Preferred, Cloud Fallback)
 // ============================================
@@ -161,23 +194,69 @@ function removeExistingOverlays() {
  */
 async function callAI(prompt, options = {}) {
     console.log('🤖 Calling AI...');
-    
+
+    // ============================================
+    // STEP 1: TRY LOCAL GEMINI NANO FIRST
+    // ============================================
+    try {
+        // FIX: Use the globally available API object (LanguageModel) which we know works.
+        const LanguageModel = window.LanguageModel || (window.ai && window.ai.languageModel);
+
+        if (LanguageModel) {
+            const availability = await LanguageModel.availability();
+            console.log('📊 Local AI availability:', availability);
+
+            // --- Apply Accessibility Prompt Logic ---
+            // NOTE: The implementation of buildAccessibilityPrompt is assumed to exist.
+            const systemPrompt = buildAccessibilityPrompt(currentProfile);
+            // --- END NEW ---
+
+            // CRITICAL FIX: Check for BOTH 'readily' and 'available'
+            if (availability === 'readily' || availability === 'available') {
+                console.log('🔍 Using Local Gemini Nano...');
+
+                const session = await LanguageModel.create({
+                    // Pass the custom system prompt here
+                    systemPrompt: systemPrompt,
+                    language: 'en'
+                });
+
+                const result = await session.prompt(prompt);
+                session.destroy();
+
+                console.log('✅ Local AI responded successfully');
+                showNotification('✓ Using on-device AI', 'success');
+                return result;
+            } else if (availability === 'after-download' || availability === 'downloadable') {
+                // Do nothing, let it fall through to cloud.
+                console.log('⏳ Model needs download or is downloading, skipping local and using cloud...');
+            }
+        }
+    } catch (localError) {
+        console.log('❌ Local AI failed, skipping local:', localError.message);
+        // Continue to cloud fallback
+    }
+
+
+    // ============================================
+    // STEP 2: CLOUD FALLBACK (YOUR EXISTING CODE CONTINUES BELOW)
+    // ============================================
+    console.log('☁️ Falling back to cloud backend...');
     const isSimplifyCall = options.isSimplify || false;
-    
+
     // Helper for making the actual fetch call (used for both hybrid and forced cloud)
     const performFetch = async (forceCloud) => {
         let endpoint = isSimplifyCall ? `${BACKEND_URL}/api/hybrid/simplify` : `${BACKEND_URL}/api/hybrid/prompt`;
-        
         console.log(`📡 Fetching from backend (Cloud forced: ${forceCloud})...`);
-        
+
         const requestBody = isSimplifyCall ? {
             text: prompt,
-            useCloud: forceCloud, 
+            useCloud: forceCloud,
             accessibilityMode: currentProfile,
             userId: userId
         } : {
             prompt: prompt,
-            useCloud: forceCloud, 
+            useCloud: forceCloud,
             accessibilityMode: currentProfile,
             userId: userId
         };
@@ -187,22 +266,22 @@ async function callAI(prompt, options = {}) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestBody)
         });
-        
+
         if (!response.ok) {
             throw new Error(`Backend returned ${response.status}`);
         }
-        
+
         return await response.json();
     };
 
     try {
         // 1. Attempt Hybrid/On-Device Check (useCloud: false)
         const data = await performFetch(false);
-        
+
         if (!data.success) {
             throw new Error(data.error || 'AI request failed');
         }
-        
+
         // 2. Check instruction: If backend says 'on-device', client must delegate it.
         if (data.source === 'on-device') {
             console.log('✅ Backend instructed to use On-Device AI. DELEGATING to Background Service Worker...');
@@ -212,7 +291,10 @@ async function callAI(prompt, options = {}) {
                 // Send a message to the background service worker to run the local AI task
                 const localResponse = await chrome.runtime.sendMessage({
                     type: 'RUN_LOCAL_GEMINI',
-                    prompt: prompt
+                    prompt: prompt,
+                    // NOTE: The background script will also need the accessibility mode if it
+                    // were handling the specialized simplify/proofread tasks, but since 
+                    // the main Prompt API logic is in STEP 1, this path is mostly for fallback.
                 });
 
                 if (localResponse && localResponse.success) {
@@ -228,17 +310,18 @@ async function callAI(prompt, options = {}) {
                 // Fall through to the Cloud Fallback logic below
             }
             // --- END: DELEGATION FIX ---
-            
+
             // 3. Fallback: Force a cloud call (useCloud: true) if local execution failed
-            const cloudData = await performFetch(true); 
-            
+            const cloudData = await performFetch(true);
+
             if (!cloudData.success) {
                 throw new Error(cloudData.error || 'Cloud fallback failed');
             }
+
             console.log('✅ Cloud AI responded (Fallback)');
             return isSimplifyCall ? cloudData.simplified : cloudData.response;
         }
-        
+
         // 4. If backend executed Cloud (e.g., prompt was too long/auto-forced)
         console.log('✅ AI responded (Cloud executed by backend)');
         return isSimplifyCall ? data.simplified : data.response;
@@ -248,7 +331,6 @@ async function callAI(prompt, options = {}) {
         throw new Error(`AI unavailable: ${error.message}. Make sure Flask backend is running on port 5000.`);
     }
 }
-
 // ============================================
 // OVERLAY CAPTURE UTILITY
 // ============================================

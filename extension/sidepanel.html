@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>ChromeAI Plus - Accessibility Assistant</title>
     <link rel="stylesheet" href="sidepanel.css">
+    <link rel="stylesheet" href="styles/loading.css">
 </head>
 <body>
     <div class="sidepanel-container">
@@ -138,31 +139,6 @@
                 </div>
             </div>
 
-            <!-- Quick Settings (from popup) -->
-            <div class="settings-section">
-                <h3>Quick Settings</h3>
-                <div class="settings-content">
-                    <label class="toggle-label">
-                        <input type="checkbox" id="dyslexia-font">
-                        <span class="toggle-slider"></span>
-                        Dyslexia-Friendly Font
-                    </label>
-                    <label class="toggle-label">
-                        <input type="checkbox" id="high-contrast">
-                        <span class="toggle-slider"></span>
-                        High Contrast Mode
-                    </label>
-                    <label class="toggle-label">
-                        <input type="checkbox" id="reduce-motion">
-                        <span class="toggle-slider"></span>
-                        Reduce Motion
-                    </label>
-                    <div class="slider-setting">
-                        <label>Text Size: <span id="text-size-value">16px</span></label>
-                        <input type="range" id="text-size" min="12" max="24" value="16">
-                    </div>
-                </div>
-            </div>
 
             <!-- Keyboard Shortcuts (from popup) -->
             <div class="shortcuts-section">
@@ -267,10 +243,313 @@
             </div>
         </div>
 
-        <!-- Add this before the footer in your sidepanel.html -->
-        <div class="results-section" id="resultsSection" style="display: none; padding: 20px; border-bottom: 1px solid rgba(0, 0, 0, 0.1);">
-                <h3>Screenshot Results</h3>
-                <div class="result-content" id="resultContent" style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb;"></div>
+        <!-- AI Feature Interfaces -->
+        <!-- Prompt API Interface -->
+        <div class="feature-interface" id="prompt-interface" style="display: none;">
+            <div class="feature-header">
+                <button class="back-btn" id="prompt-back-btn">
+                    <span>←</span>
+                    <span>Back</span>
+                </button>
+                <h3>💭 Ask AI Anything</h3>
+            </div>
+            <div class="feature-content">
+                <textarea id="prompt-input" placeholder="Ask me anything..." rows="4"></textarea>
+                <button class="action-btn" id="prompt-submit">✨ Ask AI</button>
+                <div class="response-container" id="prompt-response" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Proofreader Interface -->
+        <div class="feature-interface" id="proofread-interface" style="display: none;">
+            <div class="feature-header">
+                <button class="back-btn" id="proofread-back-btn">
+                    <span>←</span>
+                    <span>Back</span>
+                </button>
+                <h3>🔤 Proofreader</h3>
+            </div>
+            <div class="feature-content">
+                <div class="text-source-options">
+                    <label class="option-label">Text Source:</label>
+                    <div class="source-buttons">
+                        <button class="source-btn active" id="proofread-selected-btn">📝 Selected Text</button>
+                        <button class="source-btn" id="proofread-page-btn">📄 Whole Page</button>
+                    </div>
+                </div>
+                <div class="text-preview" id="proofread-preview"></div>
+                <button class="action-btn" id="proofread-submit">🔍 Check Grammar</button>
+                <div class="response-container" id="proofread-response" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Summarizer Interface -->
+        <div class="feature-interface" id="summarize-interface" style="display: none;">
+            <div class="feature-header">
+                <button class="back-btn" id="summarize-back-btn">
+                    <span>←</span>
+                    <span>Back</span>
+                </button>
+                <h3>📄 Summarizer</h3>
+            </div>
+            <div class="feature-content">
+                <div class="text-source-options">
+                    <label class="option-label">Text Source:</label>
+                    <div class="source-buttons">
+                        <button class="source-btn active" id="summarize-selected-btn">📝 Selected Text</button>
+                        <button class="source-btn" id="summarize-page-btn">📄 Whole Page</button>
+                    </div>
+                </div>
+                <div class="text-preview" id="summarize-preview"></div>
+                <div class="summary-options">
+                    <label class="option-label">Summary Length:</label>
+                    <select id="summary-length">
+                        <option value="short">Short (2-3 sentences)</option>
+                        <option value="medium" selected>Medium (1 paragraph)</option>
+                        <option value="long">Long (2-3 paragraphs)</option>
+                    </select>
+                </div>
+                <button class="action-btn" id="summarize-submit">📝 Summarize</button>
+                <div class="response-container" id="summarize-response" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Translator Interface -->
+        <div class="feature-interface" id="translate-interface" style="display: none;">
+            <div class="feature-header">
+                <button class="back-btn" id="translate-back-btn">
+                    <span>←</span>
+                    <span>Back</span>
+                </button>
+                <h3>🌐 Translator</h3>
+            </div>
+            <div class="feature-content">
+                <div class="text-source-options">
+                    <label class="option-label">Text Source:</label>
+                    <div class="source-buttons">
+                        <button class="source-btn active" id="translate-selected-btn">📝 Selected Text</button>
+                        <button class="source-btn" id="translate-page-btn">📄 Whole Page</button>
+                    </div>
+                </div>
+                <div class="text-preview" id="translate-preview"></div>
+                <div class="translation-options">
+                    <label class="option-label">Target Language:</label>
+                    <select id="target-language">
+                        <option value="spanish">Spanish</option>
+                        <option value="french">French</option>
+                        <option value="german">German</option>
+                        <option value="italian">Italian</option>
+                        <option value="portuguese">Portuguese</option>
+                        <option value="chinese">Chinese</option>
+                        <option value="japanese">Japanese</option>
+                        <option value="korean">Korean</option>
+                        <option value="arabic">Arabic</option>
+                        <option value="hindi">Hindi</option>
+                    </select>
+                </div>
+                <button class="action-btn" id="translate-submit">🌐 Translate</button>
+                <div class="response-container" id="translate-response" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Simplify Interface -->
+        <div class="feature-interface" id="simplify-interface" style="display: none;">
+            <div class="feature-header">
+                <button class="back-btn" id="simplify-back-btn">
+                    <span>←</span>
+                    <span>Back</span>
+                </button>
+                <h3>📝 Text Simplifier</h3>
+            </div>
+            <div class="feature-content">
+                <div class="text-preview" id="simplify-preview"></div>
+                <div class="simplify-options">
+                    <label class="option-label">Simplification Level:</label>
+                    <select id="simplify-level">
+                        <option value="basic">Basic (Simple words)</option>
+                        <option value="intermediate" selected>Intermediate (Clear sentences)</option>
+                        <option value="advanced">Advanced (Easy concepts)</option>
+                    </select>
+                </div>
+                <button class="action-btn" id="simplify-submit">📝 Simplify Text</button>
+                <div class="response-container" id="simplify-response" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Voice Reader Interface -->
+        <div class="feature-interface" id="voice-reader-interface" style="display: none;">
+            <div class="feature-header">
+                <button class="back-btn" id="voice-reader-back-btn">
+                    <span>←</span>
+                    <span>Back</span>
+                </button>
+                <h3>🔊 Voice Reader</h3>
+            </div>
+            <div class="feature-content">
+                <div class="text-source-options">
+                    <label class="option-label">Text Source:</label>
+                    <div class="source-buttons">
+                        <button class="source-btn active" id="voice-selected-btn">📝 Selected Text</button>
+                        <button class="source-btn" id="voice-page-btn">📄 Whole Page</button>
+                    </div>
+                </div>
+                <div class="text-preview" id="voice-reader-preview"></div>
+                
+                <div class="voice-options">
+                    <label class="option-label">Voice Settings:</label>
+                    <div class="voice-controls-grid">
+                        <div class="voice-control-item">
+                            <label>Speed:</label>
+                            <input type="range" id="voice-speed" min="0.5" max="2.0" step="0.1" value="1.0">
+                            <span id="voice-speed-value">1.0x</span>
+                        </div>
+                        <div class="voice-control-item">
+                            <label>Pitch:</label>
+                            <input type="range" id="voice-pitch" min="0.5" max="2.0" step="0.1" value="1.0">
+                            <span id="voice-pitch-value">1.0</span>
+                        </div>
+                        <div class="voice-control-item">
+                            <label>Volume:</label>
+                            <input type="range" id="voice-volume" min="0" max="1" step="0.1" value="1.0">
+                            <span id="voice-volume-value">100%</span>
+                        </div>
+                        <div class="voice-control-item">
+                            <label>Voice:</label>
+                            <select id="voice-select">
+                                <option value="auto">Auto (Best Available)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="voice-controls-buttons">
+                    <button class="action-btn" id="voice-read-submit">🔊 Start Reading</button>
+                    <button class="action-btn secondary" id="voice-pause-btn" disabled>⏸️ Pause</button>
+                    <button class="action-btn secondary" id="voice-stop-btn" disabled>⏹️ Stop</button>
+                </div>
+                
+                <div class="voice-status" id="voice-reader-status"></div>
+            </div>
+        </div>
+
+        <!-- OCR Translate Interface -->
+        <div class="feature-interface" id="ocr-translate-interface" style="display: none;">
+            <div class="feature-header">
+                <button class="back-btn" id="ocr-translate-back-btn">
+                    <span>←</span>
+                    <span>Back</span>
+                </button>
+                <h3>🖼️ OCR Translate</h3>
+            </div>
+            <div class="feature-content">
+                <div class="ocr-source-options">
+                    <label class="option-label">Image Source:</label>
+                    <div class="source-buttons">
+                        <button class="source-btn active" id="ocr-upload-btn">📁 Upload Image</button>
+                        <button class="source-btn" id="ocr-screenshot-btn">📸 Take Screenshot</button>
+                    </div>
+                </div>
+                
+                <!-- Upload Section -->
+                <div class="ocr-upload-section" id="ocr-upload-section">
+                    <div class="ocr-upload-area" id="ocr-upload-area">
+                        <div class="upload-icon">📷</div>
+                        <div class="upload-text">
+                            <strong>Upload Image</strong>
+                            <span>or drag and drop image here</span>
+                        </div>
+                        <input type="file" id="ocr-image-input" accept="image/*" style="display: none;">
+                    </div>
+                    <div class="ocr-image-preview" id="ocr-image-preview" style="display: none;">
+                        <img id="ocr-preview-img" style="max-width: 100%; border-radius: 8px;">
+                        <button class="remove-image-btn" id="remove-ocr-image">✕</button>
+                    </div>
+                </div>
+                
+                <!-- Screenshot Section -->
+                <div class="ocr-screenshot-section" id="ocr-screenshot-section" style="display: none;">
+                    <div class="screenshot-preview" id="ocr-screenshot-preview" style="display: none;">
+                        <img id="ocr-screenshot-img" style="max-width: 100%; border-radius: 8px;">
+                        <button class="remove-image-btn" id="remove-ocr-screenshot">✕</button>
+                    </div>
+                    <button class="action-btn" id="capture-screenshot-btn">📸 Capture Screenshot</button>
+                </div>
+                
+                <div class="translation-options">
+                    <label class="option-label">Target Language:</label>
+                    <select id="ocr-target-language">
+                        <option value="english">English</option>
+                        <option value="spanish">Spanish</option>
+                        <option value="german">German</option>
+                        <option value="french">French</option>
+                        <option value="chinese">Chinese</option>
+                        <option value="japanese">Japanese</option>
+                        <option value="korean">Korean</option>
+                        <option value="hindi">Hindi</option>
+                        <option value="arabic">Arabic</option>
+                    </select>
+                </div>
+                <button class="action-btn" id="ocr-translate-submit" disabled>🖼️ Extract & Translate</button>
+                <div class="response-container" id="ocr-translate-response" style="display: none;">
+                    <div class="response-header">
+                        <h4>🖼️ Extracted & Translated Text</h4>
+                        <div class="response-actions">
+                            <button class="copy-btn" id="copy-ocr-response">📋 Copy</button>
+                            <button class="clear-btn" id="clear-ocr-response">🗑️ Clear</button>
+                        </div>
+                    </div>
+                    <div class="response-content" id="ocr-response-content"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Screenshot Interface -->
+        <div class="feature-interface" id="screenshot-interface" style="display: none;">
+            <div class="feature-header">
+                <button class="back-btn" id="screenshot-back-btn">
+                    <span>←</span>
+                    <span>Back</span>
+                </button>
+                <h3>📸 Screenshot Analysis</h3>
+            </div>
+            <div class="feature-content">
+                <div class="screenshot-preview" id="screenshot-preview" style="display: none;">
+                    <img id="screenshot-img" style="max-width: 100%; border-radius: 8px; border: 2px solid #e5e7eb;">
+                    <p style="font-size: 0.8em; color: #666; margin-top: 8px; text-align: center;">📸 Captured Screenshot</p>
+                </div>
+                <div class="screenshot-analysis" id="screenshot-analysis">
+                    <div class="analysis-prompt">
+                        <label class="option-label">What would you like to know about this screenshot?</label>
+                        <textarea id="screenshot-query" placeholder="Describe what you see, ask questions about the content, or request analysis..." rows="3"></textarea>
+                    </div>
+                    <div class="screenshot-buttons">
+                        <button class="action-btn" id="capture-screenshot-main">📸 Capture Screenshot</button>
+                        <button class="action-btn" id="analyze-screenshot-btn" disabled>🤖 Analyze with AI</button>
+                    </div>
+                </div>
+                <div class="response-container" id="screenshot-response" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Insights Interface -->
+        <div class="feature-interface" id="insights-interface" style="display: none;">
+            <div class="feature-header">
+                <button class="back-btn" id="insights-back-btn">
+                    <span>←</span>
+                    <span>Back</span>
+                </button>
+                <h3>📊 Learning Insights</h3>
+            </div>
+            <div class="feature-content">
+                <div class="insights-loading" id="insights-loading" style="display: none;">
+                    <div class="loading-spinner"></div>
+                    <p>Analyzing your learning patterns...</p>
+                </div>
+                <div class="insights-content" id="insights-content">
+                    <div class="insights-session-info" id="insights-session-info"></div>
+                    <div class="insights-text" id="insights-text"></div>
+                </div>
+            </div>
         </div>
 
         <!-- Footer (from popup) -->
