@@ -141,18 +141,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const pdfFileInput = document.getElementById('pdf-file-input');
   const pdfUploadBtn = document.getElementById('pdf-upload-btn');
   const pdfProcessBtn = document.getElementById('pdf-process-btn');
+  const pdfCancelBtn = document.getElementById('pdf-cancel-btn');
   const pdfActionSelect = document.getElementById('pdf-action-select');
   const pdfStatus = document.getElementById('pdf-status');
   const pdfResult = document.getElementById('pdf-result');
   const openSidepanelBtn = document.getElementById('open-sidepanel-btn');
 
   let uploadedFilename = null;
+  let currentRequest = null; // To track the current fetch request
 
   if (pdfUploadBtn) {
     pdfUploadBtn.addEventListener('click', async () => {
       const files = pdfFileInput.files;
       if (!files || files.length === 0) {
-        pdfStatus.textContent = 'Select a PDF first.';
+        pdfStatus.textContent = 'Select a document first.';
         return;
       }
       const file = files[0];
@@ -185,6 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (uploadedFilename) {
             pdfStatus.textContent = 'Uploaded: ' + uploadedFilename;
             pdfProcessBtn.disabled = false;
+            pdfCancelBtn.disabled = false;
           } else {
             pdfStatus.textContent = 'Uploaded but no filename returned.';
           }
@@ -201,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (pdfProcessBtn) {
     pdfProcessBtn.addEventListener('click', async () => {
       if (!uploadedFilename) {
-        pdfStatus.textContent = 'No uploaded PDF.';
+        pdfStatus.textContent = 'No uploaded document.';
         return;
       }
       
@@ -216,13 +219,18 @@ document.addEventListener('DOMContentLoaded', () => {
       pdfResult.textContent = '';
       
       try {
-        const resp = await fetch('http://localhost:5000/process-pdf', {
+        // Create abort controller for cancellation
+        const abortController = new AbortController();
+        currentRequest = abortController;
+        
+        const resp = await fetch('http://localhost:5000/process-document', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             filename: uploadedFilename,
             action: action
-          })
+          }),
+          signal: abortController.signal
         });
         const j = await resp.json();
         
@@ -245,7 +253,34 @@ document.addEventListener('DOMContentLoaded', () => {
           pdfStatus.textContent = 'Processing failed: ' + (j.error || resp.statusText);
         }
       } catch (err) {
-        pdfStatus.textContent = 'Processing error: ' + (err && err.message ? err.message : err);
+        if (err.name === 'AbortError') {
+          pdfStatus.textContent = 'Processing cancelled.';
+        } else {
+          pdfStatus.textContent = 'Processing error: ' + (err && err.message ? err.message : err);
+        }
+      } finally {
+        currentRequest = null;
+      }
+    });
+  }
+
+  // Cancel button handler
+  if (pdfCancelBtn) {
+    pdfCancelBtn.addEventListener('click', () => {
+      if (currentRequest) {
+        currentRequest.abort();
+        currentRequest = null;
+        pdfStatus.textContent = 'Processing cancelled.';
+        pdfProcessBtn.disabled = false;
+        pdfCancelBtn.disabled = true;
+      } else {
+        // Reset everything if no active request
+        uploadedFilename = null;
+        pdfFileInput.value = '';
+        pdfProcessBtn.disabled = true;
+        pdfCancelBtn.disabled = true;
+        pdfResult.textContent = '';
+        pdfStatus.textContent = 'Cancelled. Upload a new document to start again.';
       }
     });
   }

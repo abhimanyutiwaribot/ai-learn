@@ -187,19 +187,20 @@
                 </div>
             </div>
 
-            <!-- PDF AI Section -->
+            <!-- Document AI Section -->
             <div class="pdf-ai-section">
-                <h3>📄 PDF AI Assistant</h3>
-                <p class="pdf-description">Upload a PDF document and let AI summarize or proofread it for you</p>
+                <h3>📄 Document AI Assistant</h3>
+                <p class="pdf-description">Upload a PDF or Word document and let AI summarize or proofread it for you</p>
                 
                 <!-- File Upload Area -->
                 <div class="file-upload-area" id="file-upload-area">
                     <div class="upload-icon">📁</div>
                     <div class="upload-text">
-                        <strong>Click to upload PDF</strong>
+                        <strong>Click to upload document</strong>
                         <span>or drag and drop your file here</span>
+                        <small>Supports PDF and Word (.docx) files</small>
                     </div>
-                    <input type="file" id="pdf-file-input" accept="application/pdf" style="display: none;">
+                    <input type="file" id="pdf-file-input" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display: none;">
                 </div>
                 
                 <!-- Uploaded File Info -->
@@ -235,11 +236,15 @@
                 <div class="action-buttons">
                     <button class="upload-btn" id="pdf-upload-btn">
                         <span class="btn-icon">⬆️</span>
-                        <span class="btn-text">Upload PDF</span>
+                        <span class="btn-text">Upload Document</span>
                     </button>
                     <button class="process-btn" id="pdf-process-btn" disabled>
                         <span class="btn-icon">🤖</span>
                         <span class="btn-text">Process with AI</span>
+                    </button>
+                    <button class="cancel-btn" id="pdf-cancel-btn" disabled>
+                        <span class="btn-icon">❌</span>
+                        <span class="btn-text">Cancel</span>
                     </button>
                 </div>
                 

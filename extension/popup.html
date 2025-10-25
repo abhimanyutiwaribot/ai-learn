@@ -121,18 +121,19 @@
                 </details>
             </section>
             
-            <!-- PDF AI: upload + process -->
+            <!-- Document AI: upload + process -->
             <div id="pdf-ai-section" style="margin-top:12px;border-top:1px solid #ddd;padding-top:10px;">
-              <h3 style="margin:4px 0;">PDF AI</h3>
-              <input id="pdf-file-input" type="file" accept="application/pdf" />
-              <button id="pdf-upload-btn">Upload PDF</button>
+              <h3 style="margin:4px 0;">Document AI</h3>
+              <input id="pdf-file-input" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+              <button id="pdf-upload-btn">Upload Document</button>
               <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
                 <select id="pdf-action-select" style="padding:6px; border:1px solid #ccc; border-radius:4px;">
                   <option value="summarize">📄 Summarize Only</option>
                   <option value="proofread">🔤 Proofread Only</option>
                   <option value="both">📝 Summarize + Proofread</option>
                 </select>
-                <button id="pdf-process-btn" disabled style="padding:6px 12px; background:#4caf50; color:white; border:none; border-radius:4px; cursor:pointer;">Process PDF</button>
+                <button id="pdf-process-btn" disabled style="padding:6px 12px; background:#4caf50; color:white; border:none; border-radius:4px; cursor:pointer;">Process Document</button>
+                <button id="pdf-cancel-btn" disabled style="padding:6px 12px; background:#f44336; color:white; border:none; border-radius:4px; cursor:pointer;">Cancel</button>
               </div>
               <div style="margin-top:8px;">
                 <button id="open-sidepanel-btn">Open Side Panel</button>
