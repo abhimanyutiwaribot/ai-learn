@@ -673,8 +673,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function handleFileSelection(file) {
-    if (file.type !== 'application/pdf') {
-      showStatus('Please select a valid PDF file.', 'error');
+    // Check if file is PDF or Word document
+    const isValidFile = file.type === 'application/pdf' || 
+                      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                      file.name.toLowerCase().endsWith('.pdf') ||
+                      file.name.toLowerCase().endsWith('.docx');
+    
+    if (!isValidFile) {
+      showStatus('Please select a valid PDF or Word document.', 'error');
       return;
     }
 
@@ -685,7 +691,8 @@ document.addEventListener('DOMContentLoaded', () => {
     fileUploadArea.style.display = 'none';
     uploadedFileInfo.style.display = 'flex';
     
-    showStatus('PDF file selected. Click "Upload PDF" to proceed.', 'info');
+    const fileType = file.name.toLowerCase().endsWith('.pdf') ? 'PDF' : 'Word document';
+    showStatus(`${fileType} file selected. Click "Upload Document" to proceed.`, 'info');
   }
 
   function resetFileUpload() {
@@ -719,12 +726,13 @@ document.addEventListener('DOMContentLoaded', () => {
     pdfUploadBtn.addEventListener('click', async () => {
       const files = pdfFileInput.files;
       if (!files || files.length === 0) {
-        showStatus('Please select a PDF file first.', 'error');
+        showStatus('Please select a document first.', 'error');
         return;
       }
       
       const file = files[0];
-      showStatus('Uploading PDF...', 'info');
+      const fileType = file.name.toLowerCase().endsWith('.pdf') ? 'PDF' : 'Word document';
+      showStatus(`Uploading ${fileType}...`, 'info');
       
       try {
         const form = new FormData();
