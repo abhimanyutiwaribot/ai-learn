@@ -12,6 +12,7 @@ import json
 import base64
 from PIL import Image
 import io
+from docx import Document
 
 # CRITICAL FIX: Removed all APIError imports. General exceptions will be used.
 
@@ -591,6 +592,18 @@ def extract_text_from_pdf(path):
         return ""
     return "\n".join(text_parts)
 
+def extract_text_from_docx(path):
+    """Extract text from Word document (.docx)"""
+    try:
+        doc = Document(path)
+        text_parts = []
+        for paragraph in doc.paragraphs:
+            if paragraph.text.strip():
+                text_parts.append(paragraph.text.strip())
+        return "\n".join(text_parts)
+    except Exception as e:
+        return ""
+
 def summarize_with_openai(text):
     openai.api_key = OPENAI_KEY
     # simple prompt - adjust as needed
@@ -618,8 +631,8 @@ Provide the corrected version and highlight any major issues found:
     return resp.choices[0].text.strip()
 
 @app.route('/upload', methods=['POST'])
-def upload_pdf():
-    """Handle PDF file upload"""
+def upload_document():
+    """Handle document file upload (PDF and Word documents)"""
     try:
         if 'file' not in request.files:
             return jsonify({"error": "No file provided"}), 400
@@ -628,8 +641,10 @@ def upload_pdf():
         if file.filename == '':
             return jsonify({"error": "No file selected"}), 400
         
-        if not file.filename.lower().endswith('.pdf'):
-            return jsonify({"error": "Only PDF files are allowed"}), 400
+        # Check file extension
+        filename_lower = file.filename.lower()
+        if not (filename_lower.endswith('.pdf') or filename_lower.endswith('.docx')):
+            return jsonify({"error": "Only PDF and Word (.docx) files are allowed"}), 400
         
         # Secure the filename and save the file
         filename = secure_filename(file.filename)
@@ -732,6 +747,62 @@ def process_pdf():
                 proofread_result = None
         if not proofread_result:
             proofread_result = f"Text extracted from PDF:\n\n{text[:1000]}\n\n[Add OPENAI_API_KEY in backend .env for AI-powered proofreading.]"
+        result['proofread'] = proofread_result
+    
+    return jsonify(result), 200
+
+def extract_text_from_document(path):
+    """Extract text from document based on file extension"""
+    filename_lower = path.lower()
+    if filename_lower.endswith('.pdf'):
+        return extract_text_from_pdf(path)
+    elif filename_lower.endswith('.docx'):
+        return extract_text_from_docx(path)
+    else:
+        return ""
+
+@app.route('/process-document', methods=['POST'])
+def process_document():
+    """Process document with multiple options: summarize, proofread, or both (PDF or Word)"""
+    data = request.get_json() or {}
+    filename = data.get('filename')
+    action = data.get('action', 'summarize')  # 'summarize', 'proofread', or 'both'
+    
+    if not filename:
+        return jsonify({"error": "filename required"}), 400
+    path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(filename))
+    if not os.path.exists(path):
+        return jsonify({"error": "file not found"}), 404
+    
+    text = extract_text_from_document(path)
+    if not text:
+        return jsonify({"error": "no text extracted"}), 500
+    
+    result = {}
+    
+    if action in ['summarize', 'both']:
+        summary = None
+        if OPENAI_KEY:
+            try:
+                summary = summarize_with_openai(text)
+            except Exception:
+                summary = None
+        if not summary:
+            summary = text.strip()[:2000]
+            if len(text) > 2000:
+                summary += "\n\n[Truncated preview. Add OPENAI_API_KEY in backend .env for better summaries.]"
+        result['summary'] = summary
+    
+    if action in ['proofread', 'both']:
+        proofread_result = None
+        if OPENAI_KEY:
+            try:
+                proofread_result = proofread_with_openai(text)
+            except Exception:
+                proofread_result = None
+        if not proofread_result:
+            file_type = "PDF" if filename.lower().endswith('.pdf') else "Word document"
+            proofread_result = f"Text extracted from {file_type}:\n\n{text[:1000]}\n\n[Add OPENAI_API_KEY in backend .env for AI-powered proofreading.]"
         result['proofread'] = proofread_result
     
     return jsonify(result), 200

@@ -589,6 +589,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const pdfFileInput = document.getElementById('pdf-file-input');
   const pdfUploadBtn = document.getElementById('pdf-upload-btn');
   const pdfProcessBtn = document.getElementById('pdf-process-btn');
+  const pdfCancelBtn = document.getElementById('pdf-cancel-btn');
   const pdfStatus = document.getElementById('pdf-status');
   const pdfResult = document.getElementById('pdf-result');
   const resultContent = document.getElementById('result-content');
@@ -604,6 +605,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let uploadedFilename = null;
   let selectedAction = 'summarize';
+  let currentRequest = null; // To track the current fetch request
 
   // File upload area click handler
   if (fileUploadArea) {
@@ -626,11 +628,11 @@ document.addEventListener('DOMContentLoaded', () => {
       fileUploadArea.classList.remove('dragover');
       
       const files = e.dataTransfer.files;
-      if (files.length > 0 && files[0].type === 'application/pdf') {
+      if (files.length > 0 && (files[0].type === 'application/pdf' || files[0].name.toLowerCase().endsWith('.docx'))) {
         pdfFileInput.files = files;
         handleFileSelection(files[0]);
       } else {
-        showStatus('Please select a valid PDF file.', 'error');
+        showStatus('Please select a valid PDF or Word document.', 'error');
       }
     });
   }
@@ -747,8 +749,9 @@ document.addEventListener('DOMContentLoaded', () => {
             uploadedFilename = body.raw.trim();
           }
           if (uploadedFilename) {
-            showStatus('PDF uploaded successfully! Ready to process.', 'success');
+            showStatus('Document uploaded successfully! Ready to process.', 'success');
             pdfProcessBtn.disabled = false;
+            pdfCancelBtn.disabled = false;
           } else {
             showStatus('Uploaded but no filename returned.', 'error');
           }
@@ -766,7 +769,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (pdfProcessBtn) {
     pdfProcessBtn.addEventListener('click', async () => {
       if (!uploadedFilename) {
-        showStatus('No uploaded PDF found.', 'error');
+        showStatus('No uploaded document found.', 'error');
         return;
       }
       
@@ -776,17 +779,22 @@ document.addEventListener('DOMContentLoaded', () => {
         'both': 'Processing (Summarize + Proofread)'
       }[selectedAction];
       
-      showStatus(`${actionText} your PDF with AI...`, 'info');
+      showStatus(`${actionText} your document with AI...`, 'info');
       pdfResult.style.display = 'none';
       
       try {
-        const resp = await fetch('http://localhost:5000/process-pdf', {
+        // Create abort controller for cancellation
+        const abortController = new AbortController();
+        currentRequest = abortController;
+        
+        const resp = await fetch('http://localhost:5000/process-document', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             filename: uploadedFilename,
             action: selectedAction
-          })
+          }),
+          signal: abortController.signal
         });
         const j = await resp.json();
         
@@ -812,8 +820,41 @@ document.addEventListener('DOMContentLoaded', () => {
           showStatus('Processing failed: ' + (j.error || resp.statusText), 'error');
         }
       } catch (err) {
-        showStatus('Processing error: ' + (err && err.message ? err.message : err), 'error');
+        if (err.name === 'AbortError') {
+          showStatus('Processing cancelled.', 'info');
+        } else {
+          showStatus('Processing error: ' + (err && err.message ? err.message : err), 'error');
+        }
+      } finally {
+        currentRequest = null;
       }
     });
+  }
+
+  // Cancel button handler
+  if (pdfCancelBtn) {
+    pdfCancelBtn.addEventListener('click', () => {
+      if (currentRequest) {
+        currentRequest.abort();
+        currentRequest = null;
+        showStatus('Processing cancelled.', 'info');
+        pdfProcessBtn.disabled = false;
+        pdfCancelBtn.disabled = true;
+      } else {
+        // Reset everything if no active request
+        resetFileUpload();
+        showStatus('Cancelled. Upload a new document to start again.', 'info');
+      }
+    });
+  }
+
+  function resetFileUpload() {
+    uploadedFilename = null;
+    pdfFileInput.value = '';
+    pdfProcessBtn.disabled = true;
+    pdfCancelBtn.disabled = true;
+    pdfResult.style.display = 'none';
+    fileUploadArea.style.display = 'block';
+    uploadedFileInfo.style.display = 'none';
   }
 });

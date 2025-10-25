@@ -17,37 +17,73 @@ body {
     width: 420px;
     min-height: 600px;
     max-height: 650px;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
     color: #333;
     overflow-y: auto;
+    position: relative;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+        radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.3) 0%, transparent 50%),
+        radial-gradient(circle at 40% 40%, rgba(120, 219, 255, 0.2) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
 }
 
 .container {
-    padding: 20px;
+    padding: 25px;
+    position: relative;
+    z-index: 1;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    margin: 10px;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
 }
 
 .header {
     text-align: center;
-    margin-bottom: 16px;
-    color: white;
+    margin-bottom: 20px;
+    color: #2d3748;
+    position: relative;
 }
 
 .logo {
-    width: 48px;
-    height: 48px;
-    margin-bottom: 8px;
+    width: 56px;
+    height: 56px;
+    margin-bottom: 12px;
+    border-radius: 16px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    transition: transform 0.3s ease;
+}
+
+.logo:hover {
+    transform: scale(1.05) rotate(5deg);
 }
 
 .title {
-    font-size: 22px;
-    font-weight: 700;
-    margin-bottom: 4px;
+    font-size: 24px;
+    font-weight: 800;
+    margin-bottom: 6px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
 .tagline {
-    font-size: 12px;
-    opacity: 0.95;
+    font-size: 13px;
+    color: #718096;
+    font-weight: 500;
 }
 
 .mode-toggle {
@@ -349,4 +385,107 @@ kbd {
 ::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.3);
     border-radius: 3px;
+}
+
+/* Beautiful Button Enhancements */
+button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s;
+}
+
+button:hover::before {
+    left: 100%;
+}
+
+button:hover {
+    background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+}
+
+/* Document AI Section Styling */
+#pdf-ai-section {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border-radius: 16px;
+    padding: 20px;
+    margin: 15px 0;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    position: relative;
+    overflow: hidden;
+}
+
+#pdf-ai-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+}
+
+#pdf-ai-section h3 {
+    color: #2d3748;
+    font-size: 1.2em;
+    font-weight: 700;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+#pdf-ai-section input[type="file"] {
+    width: 100%;
+    padding: 12px;
+    border: 2px dashed #cbd5e0;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-bottom: 15px;
+}
+
+#pdf-ai-section input[type="file"]:hover {
+    border-color: #667eea;
+    background: linear-gradient(135deg, #f0f4ff 0%, #ffffff 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+}
+
+#pdf-ai-section select {
+    padding: 8px 12px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+#pdf-ai-section select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    outline: none;
 }
