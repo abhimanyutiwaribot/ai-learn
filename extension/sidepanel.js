@@ -112,17 +112,21 @@ class ChromeAISidePanel {
         // --- Quick Settings Listeners ---
         document.getElementById('dyslexia-font').addEventListener('change', (e) => {
             this.updateSettings({ dyslexiaFont: e.target.checked });
+            this.showStatus(e.target.checked ? 'Dyslexia-friendly font enabled' : 'Dyslexia-friendly font disabled', 'success');
         });
         document.getElementById('high-contrast').addEventListener('change', (e) => {
             this.updateSettings({ highContrast: e.target.checked });
+            this.showStatus(e.target.checked ? 'High contrast mode enabled' : 'High contrast mode disabled', 'success');
         });
         document.getElementById('reduce-motion').addEventListener('change', (e) => {
             this.updateSettings({ reduceMotion: e.target.checked });
+            this.showStatus(e.target.checked ? 'Motion reduction enabled' : 'Motion reduction disabled', 'success');
         });
         document.getElementById('text-size').addEventListener('input', (e) => {
             const size = e.target.value;
             document.getElementById('text-size-value').textContent = size + 'px';
             this.updateSettings({ textSize: size });
+            this.showStatus(`Text size set to ${size}px`, 'success');
         });
     }
 
@@ -463,14 +467,38 @@ async analyzeImageWithBackend(imageDataUrl, query) {
     }
 
     applySettingsToContent(settings) {
+        // Reset all styles first
+        document.body.style.fontFamily = '';
+        document.body.style.fontSize = '';
+        document.body.style.filter = '';
+        document.body.style.animation = '';
+        document.body.style.transition = '';
+        
+        // Apply dyslexia-friendly font
         if (settings.dyslexiaFont) {
             document.body.style.fontFamily = 'OpenDyslexic, "Comic Sans MS", sans-serif';
         }
+        
+        // Apply text size
         if (settings.textSize) {
             document.body.style.fontSize = settings.textSize + 'px';
         }
+        
+        // Apply high contrast
         if (settings.highContrast) {
             document.body.style.filter = 'contrast(1.5)';
+        }
+        
+        // Apply reduce motion
+        if (settings.reduceMotion) {
+            document.body.style.animation = 'none';
+            document.body.style.transition = 'none';
+            // Also disable animations on all elements
+            const allElements = document.querySelectorAll('*');
+            allElements.forEach(el => {
+                el.style.animation = 'none';
+                el.style.transition = 'none';
+            });
         }
     }
 
@@ -554,4 +582,238 @@ async analyzeImageWithBackend(imageDataUrl, query) {
 // Initialize the side panel when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     new ChromeAISidePanel();
+});
+
+// Enhanced PDF AI functionality
+document.addEventListener('DOMContentLoaded', () => {
+  const pdfFileInput = document.getElementById('pdf-file-input');
+  const pdfUploadBtn = document.getElementById('pdf-upload-btn');
+  const pdfProcessBtn = document.getElementById('pdf-process-btn');
+  const pdfStatus = document.getElementById('pdf-status');
+  const pdfResult = document.getElementById('pdf-result');
+  const resultContent = document.getElementById('result-content');
+  const copyResultBtn = document.getElementById('copy-result-btn');
+  
+  // New elements
+  const fileUploadArea = document.getElementById('file-upload-area');
+  const uploadedFileInfo = document.getElementById('uploaded-file-info');
+  const fileName = document.getElementById('file-name');
+  const fileSize = document.getElementById('file-size');
+  const removeFileBtn = document.getElementById('remove-file-btn');
+  const optionButtons = document.querySelectorAll('.option-btn');
+
+  let uploadedFilename = null;
+  let selectedAction = 'summarize';
+
+  // File upload area click handler
+  if (fileUploadArea) {
+    fileUploadArea.addEventListener('click', () => {
+      pdfFileInput.click();
+    });
+
+    // Drag and drop functionality
+    fileUploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      fileUploadArea.classList.add('dragover');
+    });
+
+    fileUploadArea.addEventListener('dragleave', () => {
+      fileUploadArea.classList.remove('dragover');
+    });
+
+    fileUploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      fileUploadArea.classList.remove('dragover');
+      
+      const files = e.dataTransfer.files;
+      if (files.length > 0 && files[0].type === 'application/pdf') {
+        pdfFileInput.files = files;
+        handleFileSelection(files[0]);
+      } else {
+        showStatus('Please select a valid PDF file.', 'error');
+      }
+    });
+  }
+
+  // File input change handler
+  if (pdfFileInput) {
+    pdfFileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        handleFileSelection(e.target.files[0]);
+      }
+    });
+  }
+
+  // Option button handlers
+  optionButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      optionButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedAction = btn.dataset.action;
+    });
+  });
+
+  // Remove file handler
+  if (removeFileBtn) {
+    removeFileBtn.addEventListener('click', () => {
+      resetFileUpload();
+    });
+  }
+
+  // Copy result handler
+  if (copyResultBtn) {
+    copyResultBtn.addEventListener('click', () => {
+      if (resultContent) {
+        navigator.clipboard.writeText(resultContent.textContent);
+        showStatus('Results copied to clipboard!', 'success');
+      }
+    });
+  }
+
+  function handleFileSelection(file) {
+    if (file.type !== 'application/pdf') {
+      showStatus('Please select a valid PDF file.', 'error');
+      return;
+    }
+
+    // Show file info
+    fileName.textContent = file.name;
+    fileSize.textContent = formatFileSize(file.size);
+    
+    fileUploadArea.style.display = 'none';
+    uploadedFileInfo.style.display = 'flex';
+    
+    showStatus('PDF file selected. Click "Upload PDF" to proceed.', 'info');
+  }
+
+  function resetFileUpload() {
+    pdfFileInput.value = '';
+    uploadedFilename = null;
+    
+    fileUploadArea.style.display = 'block';
+    uploadedFileInfo.style.display = 'none';
+    
+    pdfProcessBtn.disabled = true;
+    pdfResult.style.display = 'none';
+    pdfStatus.textContent = '';
+    pdfStatus.className = 'status-message';
+  }
+
+  function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  function showStatus(message, type) {
+    pdfStatus.textContent = message;
+    pdfStatus.className = `status-message ${type}`;
+  }
+
+  // Upload button handler
+  if (pdfUploadBtn) {
+    pdfUploadBtn.addEventListener('click', async () => {
+      const files = pdfFileInput.files;
+      if (!files || files.length === 0) {
+        showStatus('Please select a PDF file first.', 'error');
+        return;
+      }
+      
+      const file = files[0];
+      showStatus('Uploading PDF...', 'info');
+      
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        const resp = await fetch('http://localhost:5000/upload', {
+          method: 'POST',
+          body: form
+        });
+
+        const ct = (resp.headers.get('content-type') || '').toLowerCase();
+        let body;
+        if (ct.includes('application/json')) {
+          body = await resp.json();
+        } else {
+          body = { raw: await resp.text() };
+        }
+
+        if (resp.ok) {
+          if (body.filename) {
+            uploadedFilename = body.filename;
+          } else if (body.raw) {
+            uploadedFilename = body.raw.trim();
+          }
+          if (uploadedFilename) {
+            showStatus('PDF uploaded successfully! Ready to process.', 'success');
+            pdfProcessBtn.disabled = false;
+          } else {
+            showStatus('Uploaded but no filename returned.', 'error');
+          }
+        } else {
+          const errMsg = body.error || body.raw || resp.statusText || 'Upload failed';
+          showStatus('Upload failed: ' + errMsg, 'error');
+        }
+      } catch (err) {
+        showStatus('Upload error: ' + (err && err.message ? err.message : err), 'error');
+      }
+    });
+  }
+
+  // Process button handler
+  if (pdfProcessBtn) {
+    pdfProcessBtn.addEventListener('click', async () => {
+      if (!uploadedFilename) {
+        showStatus('No uploaded PDF found.', 'error');
+        return;
+      }
+      
+      const actionText = {
+        'summarize': 'Summarizing',
+        'proofread': 'Proofreading', 
+        'both': 'Processing (Summarize + Proofread)'
+      }[selectedAction];
+      
+      showStatus(`${actionText} your PDF with AI...`, 'info');
+      pdfResult.style.display = 'none';
+      
+      try {
+        const resp = await fetch('http://localhost:5000/process-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            filename: uploadedFilename,
+            action: selectedAction
+          })
+        });
+        const j = await resp.json();
+        
+        if (resp.ok) {
+          let resultText = '';
+          
+          if (j.summary) {
+            resultText += '📄 SUMMARY\n';
+            resultText += '='.repeat(40) + '\n\n';
+            resultText += j.summary + '\n\n';
+          }
+          
+          if (j.proofread) {
+            resultText += '🔤 PROOFREAD RESULTS\n';
+            resultText += '='.repeat(40) + '\n\n';
+            resultText += j.proofread + '\n\n';
+          }
+          
+          resultContent.textContent = resultText;
+          pdfResult.style.display = 'block';
+          showStatus('AI processing completed successfully!', 'success');
+        } else {
+          showStatus('Processing failed: ' + (j.error || resp.statusText), 'error');
+        }
+      } catch (err) {
+        showStatus('Processing error: ' + (err && err.message ? err.message : err), 'error');
+      }
+    });
+  }
 });

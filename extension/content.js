@@ -303,6 +303,10 @@ async function activateOCRTranslate() {
     
     const content = `
         <div style="padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0; color: #333;">🔍 OCR + Translate</h3>
+                <button id="back-to-main-btn" style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">← Back</button>
+            </div>
             <p style="margin-bottom: 16px; color: #666; font-size: 14px;">
                 Capture text from images and translate it
             </p>
@@ -346,6 +350,12 @@ async function activateOCRTranslate() {
     
     overlay.querySelector('.chromeai-modal-body').innerHTML = content;
     document.body.appendChild(overlay);
+    
+    // Back button functionality
+    document.getElementById('back-to-main-btn').onclick = () => {
+        overlay.remove();
+        showMainInterface();
+    };
     
     let currentImageData = null;
     
@@ -522,6 +532,10 @@ async function captureAndAnalyzeScreenshot() {
     
     const content = `
         <div style="padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0; color: #333;">📷 Screenshot Analyzer</h3>
+                <button id="back-to-main-btn" style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">← Back</button>
+            </div>
             <button id="capture-btn" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px; margin-bottom: 12px;">
                 📸 Capture Screenshot
             </button>
@@ -540,6 +554,12 @@ async function captureAndAnalyzeScreenshot() {
     
     overlay.querySelector('.chromeai-modal-body').innerHTML = content;
     document.body.appendChild(overlay);
+    
+    // Back button functionality
+    document.getElementById('back-to-main-btn').onclick = () => {
+        overlay.remove();
+        showMainInterface();
+    };
     
     let capturedImage = null;
     
@@ -625,6 +645,10 @@ async function showPromptInterface() {
     
     overlay.querySelector('.chromeai-modal-body').innerHTML = `
         <div style="padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0; color: #333;">💭 Ask AI Anything</h3>
+                <button id="back-to-main-btn" style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">← Back</button>
+            </div>
             <textarea id="prompt-input" placeholder="Ask me anything..." style="width: 100%; height: 120px; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;"></textarea>
             <button id="prompt-submit" style="width: 100%; margin-top: 12px; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">✨ Ask AI</button>
             <div id="prompt-response" style="margin-top: 16px; display: none;"></div>
@@ -632,6 +656,12 @@ async function showPromptInterface() {
     `;
     
     document.body.appendChild(overlay);
+    
+    // Back button functionality
+    document.getElementById('back-to-main-btn').onclick = () => {
+        overlay.remove();
+        showMainInterface();
+    };
     
     document.getElementById('prompt-submit').onclick = async () => {
         const input = document.getElementById('prompt-input').value.trim();
@@ -669,6 +699,10 @@ async function activateProofreaderMode() {
     const overlay = createOverlay('proofread-overlay', '🔤 Proofreader');
     overlay.querySelector('.chromeai-modal-body').innerHTML = `
         <div style="padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0; color: #333;">🔤 Proofreader</h3>
+                <button id="back-to-main-btn" style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">← Back</button>
+            </div>
             <div id="proofread-original" style="margin-bottom: 16px; padding: 12px; background: #f0f0f0; border-radius: 8px; font-size: 14px; white-space: pre-wrap;">
                 <strong>Original Text:</strong><br>${textForProcessing}
             </div>
@@ -678,6 +712,12 @@ async function activateProofreaderMode() {
         </div>
     `;
     document.body.appendChild(overlay);
+
+    // Back button functionality
+    document.getElementById('back-to-main-btn').onclick = () => {
+        overlay.remove();
+        showMainInterface();
+    };
 
     try {
         const prompt = `Proofread the following text for grammar, spelling, and clarity. Respond ONLY with the corrected text, ensuring the output has a smooth flow. Do NOT include any explanations or headers. Selected text: ${textForProcessing}`;
@@ -730,6 +770,10 @@ async function showSummarizerOptions() {
     // 1. Updated Content: Show original text and a submit button
     overlay.querySelector('.chromeai-modal-body').innerHTML = `
         <div style="padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0; color: #333;">📄 Summarizer</h3>
+                <button id="back-to-main-btn" style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">← Back</button>
+            </div>
             <div id="summarizer-original" style="margin-bottom: 16px; padding: 12px; background: #f0f0f0; border-radius: 8px; font-size: 14px; max-height: 100px; overflow-y: auto; white-space: pre-wrap;">
                 <strong>Original Text (${fullContent.length} chars):</strong><br>${displayText}
             </div>
@@ -742,6 +786,12 @@ async function showSummarizerOptions() {
         </div>
     `;
     document.body.appendChild(overlay);
+
+    // Back button functionality
+    document.getElementById('back-to-main-btn').onclick = () => {
+        overlay.remove();
+        showMainInterface();
+    };
 
     const resultDiv = document.getElementById('summarizer-result');
 
@@ -799,6 +849,10 @@ async function showTranslatorInterface() {
     
     overlay.querySelector('.chromeai-modal-body').innerHTML = `
         <div style="padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0; color: #333;">🌐 Translator</h3>
+                <button id="back-to-main-btn" style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">← Back</button>
+            </div>
             <div id="translate-original" style="margin-bottom: 16px; padding: 12px; background: #f0f0f0; border-radius: 8px; font-size: 14px; max-height: 100px; overflow-y: auto; white-space: pre-wrap;">
                 <strong>Selected Text:</strong><br>${selectedText.substring(0, 150)}...
             </div>
@@ -821,6 +875,12 @@ async function showTranslatorInterface() {
         </div>
     `;
     document.body.appendChild(overlay);
+
+    // Back button functionality
+    document.getElementById('back-to-main-btn').onclick = () => {
+        overlay.remove();
+        showMainInterface();
+    };
 
     document.getElementById('translate-submit-btn').onclick = async () => {
         const targetLanguage = document.getElementById('translate-target-language').value;
@@ -868,6 +928,10 @@ async function activateSimplify() {
     // Display the original text and a loading message
     overlay.querySelector('.chromeai-modal-body').innerHTML = `
         <div style="padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0; color: #333;">📝 Simplify Text</h3>
+                <button id="back-to-main-btn" style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">← Back</button>
+            </div>
             <div id="simplify-original" style="margin-bottom: 16px; padding: 12px; background: #f0f0f0; border-radius: 8px; font-size: 14px; max-height: 100px; overflow-y: auto; white-space: pre-wrap;">
                 <strong>Original Text:</strong><br>${selectedText.substring(0, 500)}...
             </div>
@@ -879,6 +943,12 @@ async function activateSimplify() {
         </div>
     `;
     document.body.appendChild(overlay);
+
+    // Back button functionality
+    document.getElementById('back-to-main-btn').onclick = () => {
+        overlay.remove();
+        showMainInterface();
+    };
 
     try {
         const simplifiedText = await callAI(selectedText, { isSimplify: true });
@@ -916,6 +986,133 @@ async function activateVoiceReader() {
     } else {
         showNotification('Voice Reader not fully initialized', 'error');
     }
+}
+
+// ============================================
+// MAIN INTERFACE FUNCTION
+// ============================================
+
+function showMainInterface() {
+    const overlay = createOverlay('main-interface-overlay', '🤖 ChromeAI Plus Features');
+    
+    overlay.querySelector('.chromeai-modal-body').innerHTML = `
+        <div style="padding: 20px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h2 style="margin: 0 0 8px 0; color: #333; font-size: 24px;">🤖 ChromeAI Plus</h2>
+                <p style="margin: 0; color: #666; font-size: 14px;">Choose an AI feature to get started</p>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px;">
+                <button class="feature-card" id="main-prompt-btn" style="padding: 16px; background: white; border: 2px solid #e0e0e0; border-radius: 12px; cursor: pointer; transition: all 0.3s ease; text-align: center;">
+                    <div style="font-size: 32px; margin-bottom: 8px;">💭</div>
+                    <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">Prompt API</div>
+                    <div style="font-size: 11px; color: #666;">AI conversations</div>
+                </button>
+                
+                <button class="feature-card" id="main-proofread-btn" style="padding: 16px; background: white; border: 2px solid #e0e0e0; border-radius: 12px; cursor: pointer; transition: all 0.3s ease; text-align: center;">
+                    <div style="font-size: 32px; margin-bottom: 8px;">🔤</div>
+                    <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">Proofreader</div>
+                    <div style="font-size: 11px; color: #666;">Grammar check</div>
+                </button>
+                
+                <button class="feature-card" id="main-summarize-btn" style="padding: 16px; background: white; border: 2px solid #e0e0e0; border-radius: 12px; cursor: pointer; transition: all 0.3s ease; text-align: center;">
+                    <div style="font-size: 32px; margin-bottom: 8px;">📄</div>
+                    <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">Summarizer</div>
+                    <div style="font-size: 11px; color: #666;">Condense content</div>
+                </button>
+                
+                <button class="feature-card" id="main-translate-btn" style="padding: 16px; background: white; border: 2px solid #e0e0e0; border-radius: 12px; cursor: pointer; transition: all 0.3s ease; text-align: center;">
+                    <div style="font-size: 32px; margin-bottom: 8px;">🌐</div>
+                    <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">Translator</div>
+                    <div style="font-size: 11px; color: #666;">Multi-language</div>
+                </button>
+                
+                <button class="feature-card" id="main-screenshot-btn" style="padding: 16px; background: white; border: 2px solid #e0e0e0; border-radius: 12px; cursor: pointer; transition: all 0.3s ease; text-align: center;">
+                    <div style="font-size: 32px; margin-bottom: 8px;">📸</div>
+                    <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">Screenshot AI</div>
+                    <div style="font-size: 11px; color: #666;">Analyze images</div>
+                </button>
+                
+                <button class="feature-card" id="main-ocr-btn" style="padding: 16px; background: white; border: 2px solid #e0e0e0; border-radius: 12px; cursor: pointer; transition: all 0.3s ease; text-align: center;">
+                    <div style="font-size: 32px; margin-bottom: 8px;">🖼️</div>
+                    <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">OCR Translate</div>
+                    <div style="font-size: 11px; color: #666;">Extract & translate</div>
+                </button>
+                
+                <button class="feature-card" id="main-simplify-btn" style="padding: 16px; background: white; border: 2px solid #e0e0e0; border-radius: 12px; cursor: pointer; transition: all 0.3s ease; text-align: center;">
+                    <div style="font-size: 32px; margin-bottom: 8px;">📝</div>
+                    <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">Simplify</div>
+                    <div style="font-size: 11px; color: #666;">Easy reading</div>
+                </button>
+                
+                <button class="feature-card" id="main-voice-btn" style="padding: 16px; background: white; border: 2px solid #e0e0e0; border-radius: 12px; cursor: pointer; transition: all 0.3s ease; text-align: center;">
+                    <div style="font-size: 32px; margin-bottom: 8px;">🔊</div>
+                    <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">Voice Reader</div>
+                    <div style="font-size: 11px; color: #666;">Intelligent TTS</div>
+                </button>
+            </div>
+            
+            <div style="text-align: center; padding: 12px; background: #f8f9fa; border-radius: 8px; font-size: 12px; color: #666;">
+                💡 Tip: Click on any feature to start using AI assistance
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    // Add hover effects
+    const style = document.createElement('style');
+    style.textContent = `
+        .feature-card:hover {
+            border-color: #667eea !important;
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15) !important;
+        }
+    `;
+    document.head.appendChild(style);
+    
+    // Event listeners for main interface buttons
+    document.getElementById('main-prompt-btn').onclick = () => {
+        overlay.remove();
+        showPromptInterface();
+    };
+    
+    document.getElementById('main-proofread-btn').onclick = () => {
+        overlay.remove();
+        activateProofreaderMode();
+    };
+    
+    document.getElementById('main-summarize-btn').onclick = () => {
+        overlay.remove();
+        showSummarizerOptions();
+    };
+    
+    document.getElementById('main-translate-btn').onclick = () => {
+        overlay.remove();
+        showTranslatorInterface();
+    };
+    
+    document.getElementById('main-screenshot-btn').onclick = () => {
+        overlay.remove();
+        captureAndAnalyzeScreenshot();
+    };
+    
+    document.getElementById('main-ocr-btn').onclick = () => {
+        overlay.remove();
+        activateOCRTranslate();
+    };
+    
+    document.getElementById('main-simplify-btn').onclick = () => {
+        overlay.remove();
+        activateSimplify();
+    };
+    
+    document.getElementById('main-voice-btn').onclick = () => {
+        overlay.remove();
+        activateVoiceReader();
+    };
+    
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
 }
 
 // ============================================
@@ -1073,15 +1270,49 @@ function cleanText(text) {
 }
 
 function applySettingsToPage(settings) {
-    if (settings.dyslexiaFont) document.body.style.fontFamily = 'OpenDyslexic, "Comic Sans MS", sans-serif';
-    if (settings.textSize) document.body.style.fontSize = settings.textSize + 'px';
-    if (settings.highContrast) document.body.style.filter = 'contrast(1.5)';
+    // Reset all styles first
+    document.body.style.fontFamily = '';
+    document.body.style.fontSize = '';
+    document.body.style.filter = '';
+    document.body.style.animation = '';
+    document.body.style.transition = '';
+    
+    // Apply dyslexia-friendly font
+    if (settings.dyslexiaFont) {
+        document.body.style.fontFamily = 'OpenDyslexic, "Comic Sans MS", sans-serif';
+    }
+    
+    // Apply text size
+    if (settings.textSize) {
+        document.body.style.fontSize = settings.textSize + 'px';
+    }
+    
+    // Apply high contrast
+    if (settings.highContrast) {
+        document.body.style.filter = 'contrast(1.5)';
+    }
+    
+    // Apply reduce motion
+    if (settings.reduceMotion) {
+        document.body.style.animation = 'none';
+        document.body.style.transition = 'none';
+        // Also disable animations on all elements
+        const allElements = document.querySelectorAll('*');
+        allElements.forEach(el => {
+            el.style.animation = 'none';
+            el.style.transition = 'none';
+        });
+    }
 }
 
 function displayInsightsOverlay(insights, sessionCount) {
     const overlay = createOverlay('insights-overlay', '📊 Your Learning Insights');
     overlay.querySelector('.chromeai-modal-body').innerHTML = `
         <div style="padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="margin: 0; color: #333;">📊 Your Learning Insights</h3>
+                <button id="back-to-main-btn" style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">← Back</button>
+            </div>
             <div style="background: #e3f2fd; padding: 12px; border-radius: 8px; margin-bottom: 16px;">
                 <strong>Sessions Analyzed:</strong> ${sessionCount}
             </div>
@@ -1089,6 +1320,13 @@ function displayInsightsOverlay(insights, sessionCount) {
         </div>
     `;
     document.body.appendChild(overlay);
+    
+    // Back button functionality
+    document.getElementById('back-to-main-btn').onclick = () => {
+        overlay.remove();
+        showMainInterface();
+    };
+    
     overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
 }
 

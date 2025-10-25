@@ -187,6 +187,75 @@
                 </div>
             </div>
 
+            <!-- PDF AI Section -->
+            <div class="pdf-ai-section">
+                <h3>📄 PDF AI Assistant</h3>
+                <p class="pdf-description">Upload a PDF document and let AI summarize or proofread it for you</p>
+                
+                <!-- File Upload Area -->
+                <div class="file-upload-area" id="file-upload-area">
+                    <div class="upload-icon">📁</div>
+                    <div class="upload-text">
+                        <strong>Click to upload PDF</strong>
+                        <span>or drag and drop your file here</span>
+                    </div>
+                    <input type="file" id="pdf-file-input" accept="application/pdf" style="display: none;">
+                </div>
+                
+                <!-- Uploaded File Info -->
+                <div class="uploaded-file-info" id="uploaded-file-info" style="display: none;">
+                    <div class="file-icon">📄</div>
+                    <div class="file-details">
+                        <div class="file-name" id="file-name"></div>
+                        <div class="file-size" id="file-size"></div>
+                    </div>
+                    <button class="remove-file-btn" id="remove-file-btn">✕</button>
+                </div>
+                
+                <!-- Processing Options -->
+                <div class="processing-options">
+                    <label class="option-label">Choose AI Action:</label>
+                    <div class="option-buttons">
+                        <button class="option-btn active" data-action="summarize">
+                            <span class="option-icon">📄</span>
+                            <span class="option-text">Summarize</span>
+                        </button>
+                        <button class="option-btn" data-action="proofread">
+                            <span class="option-icon">🔤</span>
+                            <span class="option-text">Proofread</span>
+                        </button>
+                        <button class="option-btn" data-action="both">
+                            <span class="option-icon">📝</span>
+                            <span class="option-text">Both</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="action-buttons">
+                    <button class="upload-btn" id="pdf-upload-btn">
+                        <span class="btn-icon">⬆️</span>
+                        <span class="btn-text">Upload PDF</span>
+                    </button>
+                    <button class="process-btn" id="pdf-process-btn" disabled>
+                        <span class="btn-icon">🤖</span>
+                        <span class="btn-text">Process with AI</span>
+                    </button>
+                </div>
+                
+                <!-- Status and Results -->
+                <div class="status-section">
+                    <div class="status-message" id="pdf-status"></div>
+                    <div class="result-container" id="pdf-result" style="display: none;">
+                        <div class="result-header">
+                            <h4>AI Processing Results</h4>
+                            <button class="copy-result-btn" id="copy-result-btn">📋 Copy</button>
+                        </div>
+                        <div class="result-content" id="result-content"></div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Logout Button (from popup) -->
             <div class="logout-section">
                 <button id="logout-btn" class="logout-btn">Log Out</button>
@@ -206,6 +275,277 @@
         </div>
     </div>
 
+    <!-- Tutorial Section (shown after login if not completed) -->
+    <div id="tutorial-section" style="display: none;">
+        <div class="tutorial-container">
+            <!-- Tutorial Overlay (adapted for side panel) -->
+            <div class="tutorial-modal">
+                <!-- Header -->
+                <div class="tutorial-header">
+                    <div class="tutorial-logo">
+                        <img src="assets/icons/icon48.png" alt="ChromeAI Plus">
+                        <h1>Welcome to ChromeAI Plus!</h1>
+                    </div>
+                    <div class="tutorial-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progress-fill"></div>
+                        </div>
+                        <span class="progress-text" id="progress-text">Step 1 of 8</span>
+                    </div>
+                </div>
+
+                <!-- Content Area -->
+                <div class="tutorial-content" id="tutorial-content">
+                    <!-- Step 1: Welcome -->
+                    <div class="tutorial-step active" id="step-1">
+                        <div class="step-icon">🎉</div>
+                        <h2>Welcome to Your AI-Powered Accessibility Assistant!</h2>
+                        <p>ChromeAI Plus is designed to make the web more accessible and easier to use for everyone. Let's take a quick tour of all the amazing features available to you.</p>
+                        <div class="feature-preview">
+                            <div class="preview-item">
+                                <span class="preview-icon">🤖</span>
+                                <span>AI-Powered Features</span>
+                            </div>
+                            <div class="preview-item">
+                                <span class="preview-icon">♿</span>
+                                <span>Accessibility Support</span>
+                            </div>
+                            <div class="preview-item">
+                                <span class="preview-icon">📚</span>
+                                <span>Learning Assistance</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Accessibility Profiles -->
+                    <div class="tutorial-step" id="step-2">
+                        <div class="step-icon">🎯</div>
+                        <h2>Choose Your Accessibility Profile</h2>
+                        <p>ChromeAI Plus adapts to your specific needs. Select a profile that best describes your learning style or accessibility requirements.</p>
+                        <div class="profile-showcase">
+                            <div class="profile-card">
+                                <div class="profile-icon">📖</div>
+                                <h3>Dyslexia Support</h3>
+                                <p>Special fonts, spacing, and reading assistance</p>
+                            </div>
+                            <div class="profile-card">
+                                <div class="profile-icon">🎯</div>
+                                <h3>ADHD Focus</h3>
+                                <p>Distraction reduction and focus enhancement</p>
+                            </div>
+                            <div class="profile-card">
+                                <div class="profile-icon">👁️</div>
+                                <h3>Visual Support</h3>
+                                <p>High contrast and visual accessibility</p>
+                            </div>
+                            <div class="profile-card">
+                                <div class="profile-icon">🌐</div>
+                                <h3>Language Learning</h3>
+                                <p>Translation and language assistance</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: AI Features Overview -->
+                    <div class="tutorial-step" id="step-3">
+                        <div class="step-icon">🤖</div>
+                        <h2>Meet Your AI Assistant</h2>
+                        <p>ChromeAI Plus includes powerful AI features that can help you with reading, writing, and understanding content on any website.</p>
+                        <div class="features-grid">
+                            <div class="feature-card">
+                                <div class="feature-icon">💭</div>
+                                <h3>Prompt API</h3>
+                                <p>Ask AI anything - get instant answers and help</p>
+                            </div>
+                            <div class="feature-card">
+                                <div class="feature-icon">🔤</div>
+                                <h3>Proofreader</h3>
+                                <p>Grammar and spelling correction</p>
+                            </div>
+                            <div class="feature-card">
+                                <div class="feature-icon">📄</div>
+                                <h3>Summarizer</h3>
+                                <p>Condense long articles into key points</p>
+                            </div>
+                            <div class="feature-card">
+                                <div class="feature-icon">🌐</div>
+                                <h3>Translator</h3>
+                                <p>Translate text to multiple languages</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Advanced Features -->
+                    <div class="tutorial-step" id="step-4">
+                        <div class="step-icon">✨</div>
+                        <h2>Advanced AI Features</h2>
+                        <p>Take your experience to the next level with these cutting-edge AI capabilities.</p>
+                        <div class="advanced-features">
+                            <div class="advanced-card">
+                                <div class="advanced-icon">📸</div>
+                                <div class="advanced-content">
+                                    <h3>Screenshot AI</h3>
+                                    <p>Analyze images and screenshots with AI vision</p>
+                                </div>
+                            </div>
+                            <div class="advanced-card">
+                                <div class="advanced-icon">🖼️</div>
+                                <div class="advanced-content">
+                                    <h3>OCR Translate</h3>
+                                    <p>Extract text from images and translate it</p>
+                                </div>
+                            </div>
+                            <div class="advanced-card">
+                                <div class="advanced-icon">📝</div>
+                                <div class="advanced-content">
+                                    <h3>Text Simplifier</h3>
+                                    <p>Make complex text easier to understand</p>
+                                </div>
+                            </div>
+                            <div class="advanced-card">
+                                <div class="advanced-icon">🔊</div>
+                                <div class="advanced-content">
+                                    <h3>Voice Reader</h3>
+                                    <p>Intelligent text-to-speech with context</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 5: How to Use Features -->
+                    <div class="tutorial-step" id="step-5">
+                        <div class="step-icon">🎮</div>
+                        <h2>How to Use Features</h2>
+                        <p>Using ChromeAI Plus is simple! Here's how to get started with any feature.</p>
+                        <div class="usage-steps">
+                            <div class="usage-step">
+                                <div class="step-number">1</div>
+                                <div class="step-content">
+                                    <h3>Click the Extension Icon</h3>
+                                    <p>Open ChromeAI Plus from your browser toolbar</p>
+                                </div>
+                            </div>
+                            <div class="usage-step">
+                                <div class="step-number">2</div>
+                                <div class="step-content">
+                                    <h3>Select a Feature</h3>
+                                    <p>Choose from the AI features grid or accessibility options</p>
+                                </div>
+                            </div>
+                            <div class="usage-step">
+                                <div class="step-number">3</div>
+                                <div class="step-content">
+                                    <h3>Follow the Prompts</h3>
+                                    <p>Each feature will guide you through the process</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 6: Quick Settings -->
+                    <div class="tutorial-step" id="step-6">
+                        <div class="step-icon">⚙️</div>
+                        <h2>Quick Settings</h2>
+                        <p>Customize your experience with these quick accessibility settings.</p>
+                        <div class="settings-showcase">
+                            <div class="setting-item">
+                                <div class="setting-icon">🔤</div>
+                                <div class="setting-info">
+                                    <h3>Dyslexia-Friendly Font</h3>
+                                    <p>Switch to OpenDyslexic font for easier reading</p>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <div class="setting-icon">🔍</div>
+                                <div class="setting-info">
+                                    <h3>High Contrast Mode</h3>
+                                    <p>Increase contrast for better visibility</p>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <div class="setting-icon">📏</div>
+                                <div class="setting-info">
+                                    <h3>Text Size Control</h3>
+                                    <p>Adjust text size from 12px to 24px</p>
+                                </div>
+                            </div>
+                            <div class="setting-item">
+                                <div class="setting-icon">🎬</div>
+                                <div class="setting-info">
+                                    <h3>Reduce Motion</h3>
+                                    <p>Minimize animations for better focus</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 7: PDF Support -->
+                    <div class="tutorial-step" id="step-7">
+                        <div class="step-icon">📄</div>
+                        <h2>PDF AI Processing</h2>
+                        <p>ChromeAI Plus can analyze and process PDF documents with AI.</p>
+                        <div class="pdf-features">
+                            <div class="pdf-feature">
+                                <div class="pdf-icon">📤</div>
+                                <h3>Upload PDFs</h3>
+                                <p>Upload any PDF document for AI analysis</p>
+                            </div>
+                            <div class="pdf-feature">
+                                <div class="pdf-icon">📝</div>
+                                <h3>Summarize Content</h3>
+                                <p>Get AI-generated summaries of PDF content</p>
+                            </div>
+                            <div class="pdf-feature">
+                                <div class="pdf-icon">🔍</div>
+                                <h3>Proofread Text</h3>
+                                <p>Check grammar and spelling in PDF documents</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 8: Getting Started -->
+                    <div class="tutorial-step" id="step-8">
+                        <div class="step-icon">🚀</div>
+                        <h2>You're All Set!</h2>
+                        <p>You now know all about ChromeAI Plus features. Here are some tips to get the most out of your experience:</p>
+                        <div class="tips-list">
+                            <div class="tip-item">
+                                <div class="tip-icon">💡</div>
+                                <p>Try different accessibility profiles to find what works best for you</p>
+                            </div>
+                            <div class="tip-item">
+                                <div class="tip-icon">⌨️</div>
+                                <p>Use keyboard shortcuts for faster access (Ctrl+Shift+A)</p>
+                            </div>
+                            <div class="tip-item">
+                                <div class="tip-icon">📊</div>
+                                <p>Check your usage insights to track your learning progress</p>
+                            </div>
+                            <div class="tip-item">
+                                <div class="tip-icon">🔄</div>
+                                <p>Experiment with different features to discover new ways to learn</p>
+                            </div>
+                        </div>
+                        <div class="completion-message">
+                            <h3>🎉 Ready to explore the web with AI assistance!</h3>
+                            <p>Click "Start Using ChromeAI Plus" to begin your enhanced browsing experience.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Navigation -->
+                <div class="tutorial-navigation">
+                    <button class="nav-btn secondary" id="skip-tutorial">Skip Tutorial</button>
+                    <div class="nav-center">
+                        <button class="nav-btn secondary" id="prev-step" style="display: none;">← Previous</button>
+                        <button class="nav-btn primary" id="next-step">Next →</button>
+                    </div>
+                    <button class="nav-btn primary" id="start-using" style="display: none;">Start Using ChromeAI Plus</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="sidepanel.js"></script>
+    <script src="tutorial.js"></script>
 </body>
-</html>
