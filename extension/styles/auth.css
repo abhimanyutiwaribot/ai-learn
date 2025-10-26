@@ -1,0 +1,150 @@
+/* Auth Section Styles */
+.auth-section input {
+    width: 100%;
+    padding: 8px 12px;
+    margin: 8px 0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    background: rgba(255, 255, 255, 0.9);
+}
+
+.password-field {
+    position: relative;
+    margin: 8px 0;
+}
+
+.password-field input[type="password"],
+.password-field input[type="text"] {
+    width: 100%;
+    padding-right: 40px;
+    margin: 0;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.password-toggle:hover {
+    opacity: 1;
+}
+
+.eye-icon {
+    font-size: 16px;
+    line-height: 1;
+}
+
+.auth-section input:focus {
+    outline: 2px solid #007aff;
+    border-color: #007aff;
+}
+
+.auth-message {
+    color: #666;
+    font-size: 14px;
+    margin: 10px 0;
+    text-align: center;
+}
+
+.auth-message.error {
+    color: #dc3545;
+}
+
+.auth-message.success {
+    color: #28a745;
+}
+
+/* Reset Password Styles */
+.text-btn {
+    background: none;
+    border: none;
+    color: #007aff;
+    padding: 5px;
+    font-size: 14px;
+    cursor: pointer;
+    text-decoration: underline;
+    width: auto;
+    margin: 10px auto;
+    display: block;
+}
+
+.text-btn:hover {
+    color: #0056b3;
+}
+
+.reset-instructions {
+    font-size: 14px;
+    color: #666;
+    margin: 10px 0;
+    text-align: center;
+}
+
+.password-requirements {
+    background: rgba(0, 122, 255, 0.1);
+    border-radius: 4px;
+    padding: 10px;
+    margin: 10px 0;
+    font-size: 12px;
+}
+
+.password-requirements p {
+    margin: 0 0 5px 0;
+    color: #666;
+}
+
+.password-requirements ul {
+    margin: 0;
+    padding-left: 20px;
+    color: #666;
+}
+
+.password-requirements li {
+    margin: 3px 0;
+}
+
+/* Form transitions */
+#auth-form-container,
+#reset-request-form,
+#reset-password-form {
+    transition: opacity 0.3s ease-in-out;
+}
+
+#reset-request-form,
+#reset-password-form {
+    margin-top: 20px;
+}
+
+/* Form headers */
+.auth-section h4 {
+    color: #333;
+    font-size: 18px;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+/* Password match indicator */
+.password-match {
+    font-size: 12px;
+    margin-top: 5px;
+    text-align: center;
+}
+
+.password-match.match {
+    color: #28a745;
+}
+
+.password-match.no-match {
+    color: #dc3545;
+}

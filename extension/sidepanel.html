@@ -5,10 +5,10 @@
     <title>ChromeAI Plus - Accessibility Assistant</title>
     <link rel="stylesheet" href="sidepanel.css">
     <link rel="stylesheet" href="styles/loading.css">
+    <link rel="stylesheet" href="styles/auth.css">
 </head>
 <body>
     <div class="sidepanel-container">
-        <!-- Header -->
         <div class="header">
             <div class="logo-section">
                 <img src="assets/icons/icon48.png" alt="ChromeAI Plus" class="logo">
@@ -17,22 +17,36 @@
             <p class="subtitle">AI-Powered Accessibility Assistant</p>
         </div>
 
-        <!-- Auth Section (from popup) -->
         <div class="auth-section" id="auth-section">
             <h3>Account Access</h3>
+            
+            <!-- Login/Register Form -->
             <div id="auth-form-container">
                 <input type="email" id="auth-email" placeholder="Email" required>
-                <input type="password" id="auth-password" placeholder="Password" required>
+                <div class="password-field">
+                    <input type="password" id="auth-password" placeholder="Password" required>
+                    <button type="button" class="password-toggle" id="auth-password-toggle" aria-label="Toggle password visibility">
+                        <span class="eye-icon">👁️</span>
+                    </button>
+                </div>
+                <div class="password-requirements" id="password-requirements" style="display: none;">
+                    <p>Password must:</p>
+                    <ul>
+                        <li>Be at least 8 characters long</li>
+                        <li>Include at least one number</li>
+                        <li>Include at least one special character</li>
+                    </ul>
+                </div>
                 
                 <button id="login-btn" class="primary-btn">Log In</button>
                 <button id="register-btn" class="secondary-btn">Register</button>
+                <!-- Forgot password UI removed -->
                 <p id="auth-message" class="auth-message"></p>
             </div>
+            <!-- Password reset UI removed per request -->
         </div>
 
-        <!-- Main Content (hidden initially) -->
         <div id="main-content" style="display: none;">
-            <!-- Mode Toggle (from popup) -->
             <div class="mode-section">
                 <h3>Accessibility Mode</h3>
                 <label class="toggle-label">
@@ -42,7 +56,6 @@
                 </label>
             </div>
 
-            <!-- Profile Section (from popup) -->
             <div class="profile-section" id="profile-section">
                 <h3>Select Your Profile</h3>
                 <div class="profile-grid">
@@ -66,7 +79,6 @@
                 <div id="current-profile" class="current-profile"></div>
             </div>
 
-            <!-- Features Section (from popup) -->
             <div class="features-section">
                 <h3>AI Features</h3>
                 <div class="features-grid">
@@ -140,35 +152,10 @@
             </div>
 
 
-            <!-- Keyboard Shortcuts (from popup) -->
-            <div class="shortcuts-section">
-                <h3>Keyboard Shortcuts</h3>
-                <div class="shortcuts-list">
-                    <div class="shortcut-item">
-                        <kbd>Ctrl+Shift+A</kbd>
-                        <span>Open Extension</span>
-                    </div>
-                    <div class="shortcut-item">
-                        <kbd>Ctrl+Shift+S</kbd>
-                        <span>Simplify Text</span>
-                    </div>
-                    <div class="shortcut-item">
-                        <kbd>Ctrl+Shift+R</kbd>
-                        <span>Read Aloud</span>
-                    </div>
-                    <div class="shortcut-item">
-                        <kbd>Ctrl+Shift+I</kbd>
-                        <span>Analyze Screenshot</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Document AI Section -->
             <div class="pdf-ai-section">
                 <h3>📄 Document AI Assistant</h3>
                 <p class="pdf-description">Upload a PDF or Word document and let AI summarize or proofread it for you</p>
                 
-                <!-- File Upload Area -->
                 <div class="file-upload-area" id="file-upload-area">
                     <div class="upload-icon">📁</div>
                     <div class="upload-text">
@@ -179,7 +166,6 @@
                     <input type="file" id="pdf-file-input" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display: none;">
                 </div>
                 
-                <!-- Uploaded File Info -->
                 <div class="uploaded-file-info" id="uploaded-file-info" style="display: none;">
                     <div class="file-icon">📄</div>
                     <div class="file-details">
@@ -189,7 +175,6 @@
                     <button class="remove-file-btn" id="remove-file-btn">✕</button>
                 </div>
                 
-                <!-- Processing Options -->
                 <div class="processing-options">
                     <label class="option-label">Choose AI Action:</label>
                     <div class="option-buttons">
@@ -208,7 +193,6 @@
                     </div>
                 </div>
                 
-                <!-- Action Buttons -->
                 <div class="action-buttons">
                     <button class="upload-btn" id="pdf-upload-btn">
                         <span class="btn-icon">⬆️</span>
@@ -224,7 +208,6 @@
                     </button>
                 </div>
                 
-                <!-- Status and Results -->
                 <div class="status-section">
                     <div class="status-message" id="pdf-status"></div>
                     <div class="result-container" id="pdf-result" style="display: none;">
@@ -237,14 +220,11 @@
                 </div>
             </div>
 
-            <!-- Logout Button (from popup) -->
             <div class="logout-section">
                 <button id="logout-btn" class="logout-btn">Log Out</button>
             </div>
         </div>
 
-        <!-- AI Feature Interfaces -->
-        <!-- Prompt API Interface -->
         <div class="feature-interface" id="prompt-interface" style="display: none;">
             <div class="feature-header">
                 <button class="back-btn" id="prompt-back-btn">
@@ -260,7 +240,6 @@
             </div>
         </div>
 
-        <!-- Proofreader Interface -->
         <div class="feature-interface" id="proofread-interface" style="display: none;">
             <div class="feature-header">
                 <button class="back-btn" id="proofread-back-btn">
@@ -274,8 +253,7 @@
                     <label class="option-label">Text Source:</label>
                     <div class="source-buttons">
                         <button class="source-btn active" id="proofread-selected-btn">📝 Selected Text</button>
-                        <button class="source-btn" id="proofread-page-btn">📄 Whole Page</button>
-                    </div>
+                        </div>
                 </div>
                 <div class="text-preview" id="proofread-preview"></div>
                 <button class="action-btn" id="proofread-submit">🔍 Check Grammar</button>
@@ -283,7 +261,6 @@
             </div>
         </div>
 
-        <!-- Summarizer Interface -->
         <div class="feature-interface" id="summarize-interface" style="display: none;">
             <div class="feature-header">
                 <button class="back-btn" id="summarize-back-btn">
@@ -297,8 +274,7 @@
                     <label class="option-label">Text Source:</label>
                     <div class="source-buttons">
                         <button class="source-btn active" id="summarize-selected-btn">📝 Selected Text</button>
-                        <button class="source-btn" id="summarize-page-btn">📄 Whole Page</button>
-                    </div>
+                        </div>
                 </div>
                 <div class="text-preview" id="summarize-preview"></div>
                 <div class="summary-options">
@@ -314,7 +290,6 @@
             </div>
         </div>
 
-        <!-- Translator Interface -->
         <div class="feature-interface" id="translate-interface" style="display: none;">
             <div class="feature-header">
                 <button class="back-btn" id="translate-back-btn">
@@ -328,8 +303,7 @@
                     <label class="option-label">Text Source:</label>
                     <div class="source-buttons">
                         <button class="source-btn active" id="translate-selected-btn">📝 Selected Text</button>
-                        <button class="source-btn" id="translate-page-btn">📄 Whole Page</button>
-                    </div>
+                        </div>
                 </div>
                 <div class="text-preview" id="translate-preview"></div>
                 <div class="translation-options">
@@ -352,7 +326,6 @@
             </div>
         </div>
 
-        <!-- Simplify Interface -->
         <div class="feature-interface" id="simplify-interface" style="display: none;">
             <div class="feature-header">
                 <button class="back-btn" id="simplify-back-btn">
@@ -362,6 +335,12 @@
                 <h3>📝 Text Simplifier</h3>
             </div>
             <div class="feature-content">
+                <div class="text-source-options">
+                    <label class="option-label">Text Source:</label>
+                    <div class="source-buttons">
+                        <button class="source-btn active" id="simplify-selected-btn">📝 Selected Text</button>
+                    </div>
+                </div>
                 <div class="text-preview" id="simplify-preview"></div>
                 <div class="simplify-options">
                     <label class="option-label">Simplification Level:</label>
@@ -376,7 +355,6 @@
             </div>
         </div>
 
-        <!-- Voice Reader Interface -->
         <div class="feature-interface" id="voice-reader-interface" style="display: none;">
             <div class="feature-header">
                 <button class="back-btn" id="voice-reader-back-btn">
@@ -432,7 +410,6 @@
             </div>
         </div>
 
-        <!-- OCR Translate Interface -->
         <div class="feature-interface" id="ocr-translate-interface" style="display: none;">
             <div class="feature-header">
                 <button class="back-btn" id="ocr-translate-back-btn">
@@ -450,7 +427,6 @@
                     </div>
                 </div>
                 
-                <!-- Upload Section -->
                 <div class="ocr-upload-section" id="ocr-upload-section">
                     <div class="ocr-upload-area" id="ocr-upload-area">
                         <div class="upload-icon">📷</div>
@@ -466,7 +442,6 @@
                     </div>
                 </div>
                 
-                <!-- Screenshot Section -->
                 <div class="ocr-screenshot-section" id="ocr-screenshot-section" style="display: none;">
                     <div class="screenshot-preview" id="ocr-screenshot-preview" style="display: none;">
                         <img id="ocr-screenshot-img" style="max-width: 100%; border-radius: 8px;">
@@ -503,7 +478,6 @@
             </div>
         </div>
 
-        <!-- Screenshot Interface -->
         <div class="feature-interface" id="screenshot-interface" style="display: none;">
             <div class="feature-header">
                 <button class="back-btn" id="screenshot-back-btn">
@@ -531,7 +505,6 @@
             </div>
         </div>
 
-        <!-- Insights Interface -->
         <div class="feature-interface" id="insights-interface" style="display: none;">
             <div class="feature-header">
                 <button class="back-btn" id="insights-back-btn">
@@ -552,19 +525,15 @@
             </div>
         </div>
 
-        <!-- Footer (from popup) -->
         <div class="footer">
             <p>💙 Built for accessibility & inclusion</p>
             <p class="version">v1.0.0</p>
         </div>
     </div>
 
-    <!-- Tutorial Section (shown after login if not completed) -->
     <div id="tutorial-section" style="display: none;">
         <div class="tutorial-container">
-            <!-- Tutorial Overlay (adapted for side panel) -->
             <div class="tutorial-modal">
-                <!-- Header -->
                 <div class="tutorial-header">
                     <div class="tutorial-logo">
                         <img src="assets/icons/icon48.png" alt="ChromeAI Plus">
@@ -578,9 +547,7 @@
                     </div>
                 </div>
 
-                <!-- Content Area -->
                 <div class="tutorial-content" id="tutorial-content">
-                    <!-- Step 1: Welcome -->
                     <div class="tutorial-step active" id="step-1">
                         <div class="step-icon">🎉</div>
                         <h2>Welcome to Your AI-Powered Accessibility Assistant!</h2>
@@ -601,7 +568,6 @@
                         </div>
                     </div>
 
-                    <!-- Step 2: Accessibility Profiles -->
                     <div class="tutorial-step" id="step-2">
                         <div class="step-icon">🎯</div>
                         <h2>Choose Your Accessibility Profile</h2>
@@ -630,7 +596,6 @@
                         </div>
                     </div>
 
-                    <!-- Step 3: AI Features Overview -->
                     <div class="tutorial-step" id="step-3">
                         <div class="step-icon">🤖</div>
                         <h2>Meet Your AI Assistant</h2>
@@ -659,7 +624,6 @@
                         </div>
                     </div>
 
-                    <!-- Step 4: Advanced Features -->
                     <div class="tutorial-step" id="step-4">
                         <div class="step-icon">✨</div>
                         <h2>Advanced AI Features</h2>
@@ -696,7 +660,6 @@
                         </div>
                     </div>
 
-                    <!-- Step 5: How to Use Features -->
                     <div class="tutorial-step" id="step-5">
                         <div class="step-icon">🎮</div>
                         <h2>How to Use Features</h2>
@@ -726,7 +689,6 @@
                         </div>
                     </div>
 
-                    <!-- Step 6: Quick Settings -->
                     <div class="tutorial-step" id="step-6">
                         <div class="step-icon">⚙️</div>
                         <h2>Quick Settings</h2>
@@ -763,7 +725,6 @@
                         </div>
                     </div>
 
-                    <!-- Step 7: PDF Support -->
                     <div class="tutorial-step" id="step-7">
                         <div class="step-icon">📄</div>
                         <h2>PDF AI Processing</h2>
@@ -787,7 +748,6 @@
                         </div>
                     </div>
 
-                    <!-- Step 8: Getting Started -->
                     <div class="tutorial-step" id="step-8">
                         <div class="step-icon">🚀</div>
                         <h2>You're All Set!</h2>
@@ -817,7 +777,6 @@
                     </div>
                 </div>
 
-                <!-- Navigation -->
                 <div class="tutorial-navigation">
                     <button class="nav-btn secondary" id="skip-tutorial">Skip Tutorial</button>
                     <div class="nav-center">

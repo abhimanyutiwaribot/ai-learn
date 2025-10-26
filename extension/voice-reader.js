@@ -320,8 +320,10 @@ class VoiceReader {
     // ============================================
     
     startReading() {
+        this.stop(); // Stop any existing reading
         const mode = this.readingMode;
-        
+
+        // 1. Handle Selection mode (always fast and synchronous)
         if (mode === 'selection') {
             const selection = window.getSelection().toString();
             if (!selection) {
@@ -330,22 +332,51 @@ class VoiceReader {
                 return;
             }
             this.contentArray = [selection];
-        } else if (mode === 'sentence') {
-            this.contentArray = this.extractSentences();
-        } else if (mode === 'paragraph') {
-            this.contentArray = this.extractParagraphs();
-        } else {
-            this.contentArray = [this.extractMainContent()];
-        }
-        
-        if (this.contentArray.length === 0 || !this.contentArray[0]) {
-            this.updateStatus('No content found to read');
-            this.announce('No readable content found on this page');
+            this.currentIndex = 0;
+            this.readCurrent();
             return;
         }
+
+        // 2. Handle Whole Page / Extended modes (Needs quick start)
         
-        this.currentIndex = 0;
-        this.readCurrent();
+        // A. Start reading placeholder immediately (instant perceived start)
+        const quickText = document.title ? `Starting full page reading. Page title is: ${document.title}.` : "Starting full content reading.";
+        this.speak(quickText);
+        this.updateStatus(`Preparing full content (${this.documentType})...`);
+
+        // B. Defer the slow, synchronous extraction to the next event loop cycle
+        // This allows the browser to start speaking the quickText while extraction runs.
+        setTimeout(() => {
+            
+            // --- Synchronous Extraction (The slow part) ---
+            if (mode === 'sentence') {
+                this.contentArray = this.extractSentences();
+            } else if (mode === 'paragraph') {
+                this.contentArray = this.extractParagraphs();
+            } else {
+                // 'automatic' (Whole Page) mode
+                const fullContent = this.extractMainContent();
+                this.contentArray = [fullContent];
+            }
+            
+            // --- Validation and Restart ---
+            if (this.contentArray.length === 0 || !this.contentArray[0] || this.contentArray[0].trim().length === 0) {
+                this.synth.cancel();
+                this.stop();
+                this.updateStatus('No content found to read');
+                this.announce('No readable content found on this page');
+                return;
+            }
+
+            // Since reading has already started with quickText, we must stop it
+            // and restart the main content reading from the beginning.
+            this.synth.cancel(); 
+            this.currentIndex = 0;
+            
+            // Delay restart slightly to ensure cancel is fully processed (100ms)
+            setTimeout(() => this.readCurrent(), 100); 
+
+        }, 50); // Small timeout to defer heavy lifting
     }
     
     readCurrent() {

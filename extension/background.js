@@ -157,16 +157,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return false;
     }
 
-    // NEW: Handle side panel AI requests
-    if (request.type === 'SIDE_PANEL_AI_REQUEST') {
-        // Reuse your existing AI logic for side panel
-        handleAIRequest(request.prompt, sendResponse);
-        return true;
+    // CRITICAL FIX: Block local AI execution from Content Script (RUN_LOCAL_GEMINI)
+    if (request.type === 'RUN_LOCAL_GEMINI') {
+        console.warn('⚠️ RUN_LOCAL_GEMINI request received. AI execution in the service worker is DISABLED by developer request. Forcing fallback.');
+        sendResponse({ 
+            success: false, 
+            error: 'AI execution via Service Worker is disabled. Content script should proceed to cloud fallback.' 
+        });
+        return true; 
     }
 
-    // CRITICAL FIX: Handle local AI execution
-    if (request.type === 'RUN_LOCAL_GEMINI') {
-        handleAIRequest(request.prompt, sendResponse);
+    // NEW: Block side panel AI requests (SIDE_PANEL_AI_REQUEST)
+    if (request.type === 'SIDE_PANEL_AI_REQUEST') {
+        console.warn('⚠️ SIDE_PANEL_AI_REQUEST received. AI execution in the service worker is DISABLED by developer request. Sidepanel must use direct cloud API (Flask backend).');
+        sendResponse({ 
+            success: false, 
+            error: 'AI execution via Service Worker is disabled. Sidepanel must use direct cloud API.' 
+        });
         return true;
     }
 
@@ -178,60 +185,3 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     return false;
 });
-
-// NEW: Reusable AI function for both side panel and content scripts
-async function handleAIRequest(prompt, sendResponse) {
-    try {
-        // Check if the generic languageModel API is exposed
-        if (!chrome.languageModel) {
-            sendResponse({ success: false, error: 'Local AI API is not defined by Chrome (Permission/Version Issue).' });
-            return;
-        }
-
-        const available = await chrome.languageModel.availability();
-
-        if (available === 'available') {
-            console.log('Background Worker: Running On-Device Gemini...');
-            let aiResponseText = null;
-
-            // --- TASK DISPATCH LOGIC (using specialized APIs for proofread/summarize) ---
-
-            // Detect tasks based on unique prompt strings
-            const isProofread = prompt.includes("Proofread the following text");
-            const isSummarize = prompt.includes("Summarize the following document");
-
-            // 1. Attempt specialized APIs (if they exist)
-            if (isProofread && chrome.ai && chrome.ai.proofread) {
-                console.log('Background Worker: Using specialized Proofread API.');
-                // Extract raw text from the prompt for the dedicated API
-                const rawText = prompt.split("Selected text:").pop().trim();
-                aiResponseText = await chrome.ai.proofread({ text: rawText });
-            }
-            else if (isSummarize && chrome.ai && chrome.ai.summarize) {
-                console.log('Background Worker: Using specialized Summarize API.');
-                // Extract raw text from the prompt for the dedicated API
-                const rawText = prompt.split("Document text:").pop().trim();
-                aiResponseText = await chrome.ai.summarize({ text: rawText });
-            }
-            // 2. Default to Prompt API (Handles Prompt, Translate, Simplify, and specialized fallbacks)
-            else {
-                console.log('Background Worker: Using generic languageModel.generateContent.');
-                const response = await chrome.languageModel.generateContent({
-                    prompt: prompt,
-                    config: { outputLanguage: 'en' }
-                });
-                aiResponseText = response.text;
-            }
-            // --- END TASK DISPATCH LOGIC ---
-
-            sendResponse({ success: true, response: aiResponseText });
-
-        } else {
-            sendResponse({ success: false, error: `On-Device model unavailable: status=${available}` });
-        }
-    } catch (error) {
-        // This catches execution errors (e.g., model not downloaded, API quota)
-        console.error('Background Worker: Local Gemini execution failed:', error);
-        sendResponse({ success: false, error: 'Local AI execution failed: ' + error.message });
-    }
-}

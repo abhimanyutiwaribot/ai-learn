@@ -6,7 +6,8 @@ import PyPDF2
 from dotenv import load_dotenv
 import google.generativeai as genai
 from pymongo import MongoClient
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+from flask_bcrypt import Bcrypt
 import json
 import base64
 from PIL import Image
@@ -19,6 +20,7 @@ load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+bcrypt = Bcrypt(app)
 
 # simple request logger to debug 404s from the extension
 @app.before_request
@@ -79,25 +81,110 @@ def register_user():
             return jsonify({"success": False, "error": "MongoDB not configured"}), 400
             
         data = request.json
-        email = data.get('email').lower()
-        password = data.get('password') 
+        email = data.get('email', '').lower().strip()
+        password = data.get('password', '').strip()
         
+        # Basic validation
         if not email or not password:
             return jsonify({"success": False, "error": "Email and password are required"}), 400
+            
+        # Email format validation
+        if '@' not in email or '.' not in email:
+            return jsonify({"success": False, "error": "Please enter a valid email address"}), 400
+            
+        # Password strength validation
+        if len(password) < 8:
+            return jsonify({"success": False, "error": "Password must be at least 8 characters long"}), 400
 
         # Check if user already exists
         if db.users.find_one({'email': email}):
             return jsonify({"success": False, "error": "User already exists. Please log in instead."}), 409
             
-        # Register user (Note: Password hashing is recommended for production)
+        # Hash password before storing
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+            
+        # Register user with hashed password
         db.users.insert_one({
             'email': email,
-            'password': password, 
-            'created_at': datetime.utcnow()
+            'password': hashed_password,
+            'created_at': datetime.now(timezone.utc),
+            'last_login': datetime.now(timezone.utc),
+            'failed_login_attempts': 0,
+            'account_locked': False
         })
+        
+        # Record initial login time
+        db.users.update_one(
+            {'email': email},
+            {
+                '$set': {
+                    'created_at': datetime.now(timezone.utc),
+                    'last_login': datetime.now(timezone.utc),
+                    'failed_login_attempts': 0
+                }
+            }
+        )
         
         return jsonify({"success": True, "message": "User registered successfully", "userId": email}), 201
         
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/auth/reset-password-request', methods=['POST'])
+def request_password_reset():
+    # Deprecated: reset token flow removed. Keep endpoint removed to avoid accidental usage.
+    return jsonify({
+        "success": False,
+        "error": "Reset-token request endpoint has been disabled. Use /api/auth/reset-password to change password directly (email + new_password)."
+    }), 410
+
+@app.route('/api/auth/reset-password', methods=['POST'])
+def reset_password():
+    try:
+        if not MONGODB_ENABLED:
+            return jsonify({"success": False, "error": "MongoDB not configured"}), 400
+
+        data = request.json or {}
+        email = data.get('email', '').lower().strip()
+        new_password = data.get('new_password', '').strip()
+
+        if not email or not new_password:
+            return jsonify({"success": False, "error": "Email and new password are required"}), 400
+
+        # Password strength validation
+        if len(new_password) < 8:
+            return jsonify({"success": False, "error": "Password must be at least 8 characters long"}), 400
+
+        # Find user
+        user = db.users.find_one({'email': email})
+        if not user:
+            return jsonify({"success": False, "error": "User not found"}), 404
+
+        # Hash new password
+        hashed_password = bcrypt.generate_password_hash(new_password).decode('utf-8')
+
+        # Update password and clear any leftover reset fields; also unlock account and reset failed attempts
+        db.users.update_one(
+            {'email': email},
+            {
+                '$set': {
+                    'password': hashed_password,
+                    'account_locked': False,
+                    'failed_login_attempts': 0,
+                    'last_password_change': datetime.now(timezone.utc)
+                },
+                '$unset': {
+                    'reset_token': "",
+                    'reset_token_expiry': ""
+                }
+            }
+        )
+
+        return jsonify({
+            "success": True,
+            "message": "Password updated successfully. You can now log in with your new password."
+        }), 200
+
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -108,19 +195,64 @@ def login_user():
             return jsonify({"success": False, "error": "MongoDB not configured"}), 400
             
         data = request.json
-        email = data.get('email').lower()
-        password = data.get('password')
+        email = data.get('email', '').lower().strip()
+        password = data.get('password', '').strip()
         
         if not email or not password:
             return jsonify({"success": False, "error": "Email and password are required"}), 400
-
-        # Check user credentials
-        user = db.users.find_one({'email': email, 'password': password})
+            
+        # Find user by email
+        user = db.users.find_one({'email': email})
         
-        if user:
-            return jsonify({"success": True, "message": "Login successful", "userId": email}), 200
-        else:
+        if not user:
+            # Use same error message as failed password to prevent email enumeration
             return jsonify({"success": False, "error": "Invalid email or password"}), 401
+            
+        # Check if account is locked
+        if user.get('account_locked', False):
+            return jsonify({
+                "success": False, 
+                "error": "Account is locked due to too many failed attempts. Please reset your password."
+            }), 403
+            
+        # Verify password
+        if not bcrypt.check_password_hash(user['password'], password):
+            # Increment failed login attempts
+            failed_attempts = user.get('failed_login_attempts', 0) + 1
+            update_data = {
+                '$set': {
+                    'failed_login_attempts': failed_attempts,
+                    'account_locked': failed_attempts >= 5  # Lock account after 5 failed attempts
+                }
+            }
+            db.users.update_one({'email': email}, update_data)
+
+            if failed_attempts >= 5:
+                return jsonify({
+                    "success": False,
+                    "error": "Account locked due to too many failed attempts. Please reset your password."
+                }), 403
+
+            return jsonify({"success": False, "error": "Invalid email or password"}), 401
+            
+        # Reset failed attempts and update last login time on successful login
+        db.users.update_one(
+            {'email': email},
+            {
+        '$set': {
+            'last_login': datetime.now(timezone.utc),
+                    'failed_login_attempts': 0,
+                    'account_locked': False
+                }
+            }
+        )
+        
+        return jsonify({
+            "success": True, 
+            "message": "Login successful", 
+            "userId": email,
+            "lastLogin": user.get('last_login')
+        }), 200
             
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -141,8 +273,8 @@ def analyze_image():
         user_query = data.get('query', 'Analyze this image')
         accessibility_mode = data.get('accessibilityMode')
         
-        # MODEL: gemini-2.5-flash (Updated from gemini-2.0-flash-exp)
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        # MODEL: gemini-2.0-flash-lite (Updated from gemini-2.0-flash-exp)
+        model = genai.GenerativeModel('gemini-2.0-flash-lite')
         
         if accessibility_mode:
             prompt = build_accessibility_prompt(user_query, accessibility_mode)
@@ -183,8 +315,8 @@ def ocr_translate():
         image_base64 = data.get('image')
         target_language = data.get('targetLanguage', 'English')
         
-        # MODEL: gemini-2.5-flash (Updated from gemini-2.0-flash-exp)
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        # MODEL: gemini-2.0-flash-lite (Updated from gemini-2.0-flash-exp)
+        model = genai.GenerativeModel('gemini-2.0-flash-lite')
         
         prompt = f"""
         Extract all text from this image and translate it to {target_language}.
@@ -228,15 +360,22 @@ def hybrid_prompt():
         accessibility_mode = data.get('accessibilityMode')
         
         # Use cloud for long prompts or when explicitly requested
-        if use_cloud or len(prompt) > 10000:
+        if use_cloud or len(prompt) > 3000:
             if not GEMINI_ENABLED:
                 return jsonify({
                     "success": False,
                     "error": "Cloud AI not available. Prompt too long for on-device processing."
                 }), 400
             
-            # MODEL: gemini-2.5-flash (Updated from gemini-2.0-flash-exp)
-            model = genai.GenerativeModel('gemini-2.5-flash')
+            # --- FIX APPLIED: Truncate the prompt to 75000 characters for the cloud API ---
+            MAX_PROMPT_LENGTH = 10000 
+            if len(prompt) > MAX_PROMPT_LENGTH:
+                # Truncate the content part of the prompt
+                prompt = prompt[:MAX_PROMPT_LENGTH] + "\n\n[Content truncated to fit API limit.]"
+            # -------------------------------------------------------------------------------
+            
+            # MODEL: gemini-2.0-flash-lite (Updated from gemini-2.0-flash-exp)
+            model = genai.GenerativeModel('gemini-2.0-flash-lite')
             
             if accessibility_mode:
                 prompt = build_accessibility_prompt(prompt, accessibility_mode)
@@ -281,10 +420,10 @@ def hybrid_simplify():
                     "error": "Cloud AI not available. Text too long for on-device processing."
                 }), 400
             
-            # MODEL: gemini-2.5-flash (Updated from gemini-pro)
-            model = genai.GenerativeModel('gemini-2.5-flash')
+            # MODEL: gemini-2.0-flash-lite (Updated from gemini-pro)
+            model = genai.GenerativeModel('gemini-2.0-flash-lite')
             
-            prompt = f"Simplify this text for someone with {accessibility_mode or 'general'} reading needs:\n\n{text}"
+            prompt = f"Simplify this text for someone with {accessibility_mode or 'general'} reading needs. The simplified response must be in the same language as the input text:\n\n{text}"
             
             if accessibility_mode == 'dyslexia':
                 prompt += "\n\nUse short sentences, simple words, and bullet points."
@@ -376,7 +515,7 @@ def save_profile():
                 '$set': {
                     'user_id': user_id,
                     'profile': profile,
-                    'updated_at': datetime.utcnow()
+                        'updated_at': datetime.now(timezone.utc)
                 }
             },
             upsert=True
@@ -431,7 +570,7 @@ def log_session():
             'document_type': data.get('documentType'),
             'features_used': data.get('featuresUsed', []),
             'duration': data.get('duration', 0),
-            'timestamp': datetime.utcnow()
+           'timestamp': datetime.now(timezone.utc)
         }
         
         db.sessions.insert_one(session_data)
@@ -478,8 +617,8 @@ def get_insights(user_id):
             session['timestamp'] = session['timestamp'].isoformat()
             sessions_data.append(session)
         
-        # MODEL: gemini-2.5-flash (Updated from gemini-pro)
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        # MODEL: gemini-2.0-flash-lite (Updated from gemini-pro)
+        model = genai.GenerativeModel('gemini-2.0-flash-lite')
         prompt = f"""Analyze these learning session patterns and provide personalized insights:
 
 {json.dumps(sessions_data[:10], indent=2)}
@@ -570,7 +709,7 @@ def log_usage(user_id, feature, metadata=None):
                 'user_id': user_id,
                 'feature': feature,
                 'metadata': metadata or {},
-                'timestamp': datetime.utcnow()
+              'timestamp': datetime.now(timezone.utc)
             }
             db.usage_logs.insert_one(log_data)
     except Exception as e:
@@ -608,7 +747,7 @@ def summarize_with_gemini(text):
         return None
     
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel('gemini-2.0-flash-lite')
         prompt = f"Summarize the following document into a concise summary:\n\n{text[:30000]}"
         response = model.generate_content(prompt)
         return response.text.strip()
@@ -622,7 +761,7 @@ def proofread_with_gemini(text):
         return None
     
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel('gemini-2.0-flash-lite')
         prompt = f"""Please proofread the following text for grammar, spelling, punctuation, and style improvements. 
 Provide the corrected version and highlight any major issues found:
 

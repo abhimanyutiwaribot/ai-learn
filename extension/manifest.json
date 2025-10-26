@@ -8,7 +8,7 @@
     "YOUR_TRIAL_TOKEN_1",
     "YOUR_TRIAL_TOKEN_2"
   ],
-  "permissions": [
+  "permissions": [ 
     "activeTab",
     "scripting",
     "storage",
@@ -29,7 +29,6 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_popup": "popup.html",
     "default_icon": {
       "16": "assets/icons/icon16.png",
       "48": "assets/icons/icon48.png",

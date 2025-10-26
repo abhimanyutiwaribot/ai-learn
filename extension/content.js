@@ -107,6 +107,40 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             sendResponse({ text: pageText });
             return true;
         }
+
+    if (message.type === 'SIDE_PANEL_CALL_AI') { // New handler for side panel requests
+        const { feature, data } = message;
+        
+        currentProfile = data.accessibilityMode;
+        userId = data.userId;
+        
+        let prompt = data.prompt || data.text;
+        let options = {
+            feature: feature // Pass feature type for local/cloud split logic
+        }; 
+        
+        // Custom logic to handle SIMPLIFY/TRANSLATE requests using callAI
+        if (feature === 'SIMPLIFY') {
+            // Simplify uses the specialized API endpoint, pass hint and level
+            options.isSimplify = true;
+            options.simplifyLevel = data.level;
+            prompt = data.text; // Pass raw text
+        }
+        
+        callAI(prompt, options)
+            .then(response => {
+                sendResponse({ 
+                    success: true, 
+                    response: response 
+                });
+            })
+            .catch(error => {
+                console.error('❌ Content Script AI Error:', error);
+                showNotification('Error: ' + error.message, 'error');
+                sendResponse({ success: false, error: error.message });
+            });
+        return true; // Keep the message channel open for async response
+    }
     
     return false;
 });
@@ -194,47 +228,69 @@ function buildAccessibilityPrompt(profile) {
  */
 async function callAI(prompt, options = {}) {
     console.log('🤖 Calling AI...');
+    
+    // --- FIX 1: Define max prompt length for quick local-check skip. Set to 3000 characters. ---
+    const MAX_LOCAL_PROMPT_LENGTH = 3000; 
+    // -------------------------------------------------------------------------------------------
+
+    const feature = options.feature || 'PROMPT'; // Use PROMPT as default if not passed
+
+    // CRITICAL FIX: Only attempt local AI for PROMPT and PROOFREAD
+    const shouldAttemptLocal = feature === 'PROMPT' || feature === 'PROOFREAD'; 
+
+    // --- FIX 2: Check length before attempting local AI to speed up fallback ---
+    let skipLocalAttempt = false;
+    if (shouldAttemptLocal && prompt.length > MAX_LOCAL_PROMPT_LENGTH) {
+        console.log(`⏩ Prompt length (${prompt.length}) exceeds local limit (${MAX_LOCAL_PROMPT_LENGTH}). Skipping local AI attempt.`);
+        skipLocalAttempt = true;
+    }
+    // -------------------------------------------------------------------------
 
     // ============================================
     // STEP 1: TRY LOCAL GEMINI NANO FIRST
+    // (Relies on the manifest OT tokens for proofreader and prompt API capability)
     // ============================================
-    try {
-        // FIX: Use the globally available API object (LanguageModel) which we know works.
-        const LanguageModel = window.LanguageModel || (window.ai && window.ai.languageModel);
+    if (shouldAttemptLocal && !skipLocalAttempt) { // Check the feature flag AND the new skip flag
+        try {
+            // FIX: Use the globally available API object (LanguageModel) which we know works.
+            const LanguageModel = window.LanguageModel || (window.ai && window.ai.languageModel);
 
-        if (LanguageModel) {
-            const availability = await LanguageModel.availability();
-            console.log('📊 Local AI availability:', availability);
+            if (LanguageModel) {
+                const availability = await LanguageModel.availability();
+                console.log('📊 Local AI availability (Content Script):', availability);
 
-            // --- Apply Accessibility Prompt Logic ---
-            // NOTE: The implementation of buildAccessibilityPrompt is assumed to exist.
-            const systemPrompt = buildAccessibilityPrompt(currentProfile);
-            // --- END NEW ---
+                // --- Apply Accessibility Prompt Logic ---
+                // The Proofreader OT capability is enabled via the token. We use the same languageModel API.
+                const systemPrompt = buildAccessibilityPrompt(currentProfile);
+                // --- END NEW ---
 
-            // CRITICAL FIX: Check for BOTH 'readily' and 'available'
-            if (availability === 'readily' || availability === 'available') {
-                console.log('🔍 Using Local Gemini Nano...');
+                // CRITICAL FIX: Check for BOTH 'readily' and 'available'
+                if (availability === 'readily' || availability === 'available') {
+                    console.log('🔍 Using Local Gemini Nano (Content Script Direct)...');
 
-                const session = await LanguageModel.create({
-                    // Pass the custom system prompt here
-                    systemPrompt: systemPrompt,
-                    language: 'en'
-                });
+                    const session = await LanguageModel.create({
+                        // Pass the custom system prompt here
+                        systemPrompt: systemPrompt,
+                        language: 'en'
+                    });
 
-                const result = await session.prompt(prompt);
-                session.destroy();
+                    const result = await session.prompt(prompt);
+                    session.destroy();
 
-                console.log('✅ Local AI responded successfully');
-                showNotification('✓ Using on-device AI', 'success');
-                return result;
-            } else if (availability === 'after-download' || availability === 'downloadable') {
-                // Do nothing, let it fall through to cloud.
-                console.log('⏳ Model needs download or is downloading, skipping local and using cloud...');
+                    console.log('✅ Local AI responded successfully (Content Script Result)');
+                    showNotification('✓ Using on-device AI', 'success');
+                    return result;
+                } else if (availability === 'after-download' || availability === 'downloadable') {
+                    // Do nothing, let it fall through to cloud.
+                    console.log('⏳ Model needs download or is downloading, skipping local and using cloud...');
+                }
             }
+        } catch (localError) {
+            console.log('❌ Local AI failed, skipping local:', localError.message);
+            // Continue to cloud fallback
         }
-    } catch (localError) {
-        console.log('❌ Local AI failed, skipping local:', localError.message);
-        // Continue to cloud fallback
+    } else {
+        console.log(`⏩ Skipping local AI check for feature: ${feature}. Proceeding directly to Cloud.`);
     }
 
 
@@ -253,6 +309,8 @@ async function callAI(prompt, options = {}) {
             text: prompt,
             useCloud: forceCloud,
             accessibilityMode: currentProfile,
+            // CRITICAL FIX: Include simplify level in the requestBody for the backend API
+            level: options.simplifyLevel, 
             userId: userId
         } : {
             prompt: prompt,
@@ -284,32 +342,7 @@ async function callAI(prompt, options = {}) {
 
         // 2. Check instruction: If backend says 'on-device', client must delegate it.
         if (data.source === 'on-device') {
-            console.log('✅ Backend instructed to use On-Device AI. DELEGATING to Background Service Worker...');
-
-            // --- START: LOCAL AI EXECUTION DELEGATION ---
-            try {
-                // Send a message to the background service worker to run the local AI task
-                const localResponse = await chrome.runtime.sendMessage({
-                    type: 'RUN_LOCAL_GEMINI',
-                    prompt: prompt,
-                    // NOTE: The background script will also need the accessibility mode if it
-                    // were handling the specialized simplify/proofread tasks, but since 
-                    // the main Prompt API logic is in STEP 1, this path is mostly for fallback.
-                });
-
-                if (localResponse && localResponse.success) {
-                    console.log('✅ Local AI responded from background.');
-                    return localResponse.response;
-                } else {
-                    // Local execution failed (e.g., model not downloaded, background error)
-                    throw new Error(localResponse?.error || 'Background local AI execution failed.');
-                }
-            } catch (backgroundError) {
-                console.error('❌ Failed to communicate with background local AI (Local execution failed):', backgroundError);
-                console.log('⚠️ Falling through to Cloud Fallback...');
-                // Fall through to the Cloud Fallback logic below
-            }
-            // --- END: DELEGATION FIX ---
+            console.log('⚠️ Backend instructed to use On-Device AI, but delegation to background is disabled. Forcing Cloud fallback...');
 
             // 3. Fallback: Force a cloud call (useCloud: true) if local execution failed
             const cloudData = await performFetch(true);
@@ -318,7 +351,7 @@ async function callAI(prompt, options = {}) {
                 throw new Error(cloudData.error || 'Cloud fallback failed');
             }
 
-            console.log('✅ Cloud AI responded (Fallback)');
+            console.log('✅ Cloud AI responded (Forced Fallback)');
             return isSimplifyCall ? cloudData.simplified : cloudData.response;
         }
 
@@ -754,8 +787,10 @@ async function showPromptInterface() {
         responseDiv.innerHTML = '⏳ Thinking...';
         
         try {
-            const response = await callAI(input);
-            responseDiv.innerHTML = `<div style="padding: 12px; background: #e8f5e9; border-radius: 8px; white-space: pre-wrap;">${response}</div>`;
+            const response = await callAI(input, { feature: 'PROMPT' });
+            // Use formatAIResponse
+            const formattedResponse = this.formatAIResponse(response);
+            responseDiv.innerHTML = `<div style="padding: 12px; background: #e8f5e9; border-radius: 8px; white-space: pre-wrap;">${formattedResponse}</div>`;
         } catch (error) {
             responseDiv.innerHTML = `<div style="padding: 12px; background: #ffebee; border-radius: 8px; color: #c62828;">${error.message}</div>`;
         }
@@ -804,12 +839,16 @@ async function activateProofreaderMode() {
     try {
         const prompt = `Proofread the following text for grammar, spelling, and clarity. Respond ONLY with the corrected text, ensuring the output has a smooth flow. Do NOT include any explanations or headers. Selected text: ${textForProcessing}`;
         
-        const correctedText = await callAI(prompt);
+        // The callAI logic now prioritizes the specialized Proofreader OT/Nano, then falls back to cloud
+        const correctedText = await callAI(prompt, { feature: 'PROOFREAD' });
 
+        // Use formatAIResponse
+        const formattedText = this.formatAIResponse(correctedText);
+        
         document.getElementById('proofread-result').innerHTML = `
             <div style="padding: 16px; background: #e8f5e9; border-radius: 8px;">
                 <strong>✅ Corrected Text:</strong><br>
-                <div id="corrected-output" style="white-space: pre-wrap; line-height: 1.6; margin-top: 8px;">${correctedText}</div>
+                <div id="corrected-output" style="line-height: 1.6; margin-top: 8px;">${formattedText}</div>
                 <button id="copy-proofread-btn" style="margin-top: 12px; width: 100%; padding: 10px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
                     📋 Copy Correction
                 </button>
@@ -888,12 +927,15 @@ async function showSummarizerOptions() {
         try {
             const prompt = `Summarize the following document concisely, clearly, and using bullet points for key takeaways. Document text: ${fullContent}`;
             
-            const summary = await callAI(prompt);
+            const summary = await callAI(prompt, { feature: 'SUMMARIZE' });
+
+            // Use formatAIResponse
+            const formattedSummary = this.formatAIResponse(summary);
 
             resultDiv.innerHTML = `
                 <div style="padding: 16px; background: #e8f5e9; border-radius: 8px;">
                     <strong>🤖 Summary:</strong><br>
-                    <div id="summary-output" style="white-space: pre-wrap; line-height: 1.6; margin-top: 8px;">${summary}</div>
+                    <div id="summary-output" style="line-height: 1.6; margin-top: 8px;">${formattedSummary}</div>
                     <button id="copy-summary-btn" style="margin-top: 12px; width: 100%; padding: 10px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
                         📋 Copy Summary
                     </button>
@@ -971,14 +1013,17 @@ async function showTranslatorInterface() {
         resultDiv.innerHTML = `<div style="padding: 12px; background: #e3f2fd; border-radius: 8px;">⏳ Translating to ${targetLanguage}...</div>`;
 
         try {
-            const prompt = `Translate the following text into ${targetLanguage}. Respond ONLY with the translated text. Selected text: ${selectedText}`;
+            const prompt = `Translate the following text into ${targetLanguage}. Provide only the translation. Selected text: ${selectedText}`;
             
-            const translation = await callAI(prompt);
+            const translation = await callAI(prompt, { feature: 'TRANSLATE' });
+
+            // Use formatAIResponse
+            const formattedTranslation = this.formatAIResponse(translation);
 
             resultDiv.innerHTML = `
                 <div style="padding: 16px; background: #e8f5e9; border-radius: 8px;">
                     <strong>🌐 Translation (${targetLanguage}):</strong><br>
-                    <div id="translation-output" style="white-space: pre-wrap; line-height: 1.6; margin-top: 8px;">${translation}</div>
+                    <div id="translation-output" style="line-height: 1.6; margin-top: 8px;">${formattedTranslation}</div>
                     <button id="copy-translate-btn" style="margin-top: 12px; width: 100%; padding: 10px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
                         📋 Copy Translation
                     </button>
@@ -1033,13 +1078,16 @@ async function activateSimplify() {
     };
 
     try {
-        const simplifiedText = await callAI(selectedText, { isSimplify: true });
+        const simplifiedText = await callAI(selectedText, { isSimplify: true, feature: 'SIMPLIFY' });
         
+        // Use formatAIResponse
+        const formattedText = this.formatAIResponse(simplifiedText);
+
         // Display the successful result
         document.getElementById('simplify-result').innerHTML = `
             <div style="padding: 16px; background: #e8f5e9; border-radius: 8px;">
                 <strong>✨ Simplified Text:</strong><br>
-                <div id="simplified-output" style="white-space: pre-wrap; line-height: 1.6; margin-top: 8px;">${simplifiedText}</div>
+                <div id="simplified-output" style="line-height: 1.6; margin-top: 8px;">${formattedText}</div>
                 <button id="copy-simplify-btn" style="margin-top: 12px; width: 100%; padding: 10px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
                     📋 Copy Simplified Text
                 </button>
@@ -1532,17 +1580,4 @@ function addReadingLine() {
 }
 
 console.log('✅ ChromeAI Plus content script ready');
-})();
-
-// Add this to your content script initialization
-(async function initializePDFSupport() {
-    if (window.pdfProcessor && window.pdfProcessor.isPDF()) {
-        console.log('📄 PDF detected, waiting for content load...');
-        const loaded = await window.pdfProcessor.waitForPDFLoad();
-        if (loaded) {
-            console.log('✅ PDF content loaded successfully');
-        } else {
-            console.log('⚠️ PDF content load timeout');
-        }
-    }
 })();

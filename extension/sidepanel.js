@@ -60,6 +60,26 @@ class ChromeAISidePanel {
         document.getElementById('login-btn').addEventListener('click', () => this.handleAuth('login'));
         document.getElementById('register-btn').addEventListener('click', () => this.handleAuth('register'));
         document.getElementById('logout-btn').addEventListener('click', () => this.logoutUser());
+
+        // Password Toggle Listeners
+        document.getElementById('auth-password-toggle').addEventListener('click', () => this.togglePasswordVisibility('auth-password'));
+        document.getElementById('new-password-toggle').addEventListener('click', () => this.togglePasswordVisibility('new-password'));
+        document.getElementById('confirm-password-toggle').addEventListener('click', () => this.togglePasswordVisibility('confirm-password'));
+        
+        // Password Reset Listeners
+        document.getElementById('forgot-password-btn').addEventListener('click', () => this.showResetRequestForm());
+        document.getElementById('request-reset-btn').addEventListener('click', () => this.handlePasswordResetRequest());
+        document.getElementById('reset-password-btn').addEventListener('click', () => this.handlePasswordReset());
+        document.getElementById('cancel-reset-request-btn').addEventListener('click', () => this.showLoginForm());
+        document.getElementById('cancel-reset-password-btn').addEventListener('click', () => this.showLoginForm());
+        
+        // Password validation listeners
+        document.getElementById('auth-password').addEventListener('input', () => this.validatePassword('auth-password'));
+        document.getElementById('new-password').addEventListener('input', () => {
+            this.validatePassword('new-password');
+            this.checkPasswordsMatch();
+        });
+        document.getElementById('confirm-password').addEventListener('input', () => this.checkPasswordsMatch());
         
         // --- Accessibility Listeners ---
         document.getElementById('accessibility-mode-toggle').addEventListener('change', (e) => {
@@ -133,16 +153,15 @@ class ChromeAISidePanel {
         // --- Source Button Listeners ---
         // Proofreader source buttons
         document.getElementById('proofread-selected-btn').addEventListener('click', () => this.switchTextSource('proofread', 'selected'));
-        document.getElementById('proofread-page-btn').addEventListener('click', () => this.switchTextSource('proofread', 'page'));
         
         // Summarizer source buttons
         document.getElementById('summarize-selected-btn').addEventListener('click', () => this.switchTextSource('summarize', 'selected'));
-        document.getElementById('summarize-page-btn').addEventListener('click', () => this.switchTextSource('summarize', 'page'));
+        // REMOVED: document.getElementById('summarize-page-btn').addEventListener('click', () => this.switchTextSource('summarize', 'page'));
         
         // Translator source buttons
         document.getElementById('translate-selected-btn').addEventListener('click', () => this.switchTextSource('translate', 'selected'));
-        document.getElementById('translate-page-btn').addEventListener('click', () => this.switchTextSource('translate', 'page'));
-        
+        // REMOVED: document.getElementById('translate-page-btn').addEventListener('click', () => this.switchTextSource('translate', 'page'));
+        document.getElementById('simplify-selected-btn').addEventListener('click', () => this.switchTextSource('simplify', 'selected')); 
         // Voice Reader source buttons
         document.getElementById('voice-selected-btn').addEventListener('click', () => this.switchTextSource('voice-reader', 'selected'));
         document.getElementById('voice-page-btn').addEventListener('click', () => this.switchTextSource('voice-reader', 'page'));
@@ -178,6 +197,51 @@ class ChromeAISidePanel {
         // --- OCR Response Listeners ---
         document.getElementById('copy-ocr-response').addEventListener('click', () => this.copyOCRResponse());
         document.getElementById('clear-ocr-response').addEventListener('click', () => this.clearOCRResponse());
+    }
+
+    // === NEW UTILITY METHOD: Robust Message Sender ===
+    async sendMessageToContentScript(tabId, message) {
+        return new Promise((resolve, reject) => {
+            chrome.tabs.sendMessage(tabId, message, (response) => {
+                if (chrome.runtime.lastError) {
+                    // This catches "Could not establish connection. Receiving end does not exist."
+                    const error = new Error('Failed to connect to content script. Try reloading the webpage.');
+                    error.originalMessage = chrome.runtime.lastError.message;
+                    return reject(error);
+                }
+                if (!response) {
+                    return reject(new Error('Content script sent an empty or undefined response.'));
+                }
+                resolve(response);
+            });
+        });
+    }
+
+    // === AI Response Formatting ===
+    formatAIResponse(text) {
+        if (!text) return '';
+        
+        // 1. Convert **bold** to <strong>bold</strong>. This fixes the user's issue.
+        let html = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        
+        // 2. Convert code blocks (```language\ncode\n```) to <pre>
+        html = html.replace(/```(?:\w+)?\n?([\s\S]*?)```/g, (match, p1) => {
+            return `<pre style="background:#f8f8f8; padding: 10px; border-radius: 6px; overflow-x: auto; margin: 10px 0; font-family: monospace;"><code>${p1.trim()}</code></pre>`;
+        });
+
+        // 3. Convert list items (* or -) to HTML format
+        // Finds newline followed by *, -, or number + dot, and converts to a bullet point symbol.
+        // It relies on double newlines being handled by the main newline replacement later.
+        html = html.replace(/(\r?\n)([*-] )/g, '$1&bull; ');
+
+        // 4. Convert newlines to <br> for general display outside <pre>
+        // Note: This needs to run *after* the markdown replacements above.
+        html = html.replace(/\r?\n/g, '<br>');
+
+        // 5. Clean up leading/trailing <br> tags
+        html = html.replace(/^(<br>)+|(<br>)+$/g, '');
+
+        return html;
     }
 
     // === SCREENSHOT FUNCTIONALITY ===
@@ -313,6 +377,8 @@ class ChromeAISidePanel {
 
     showScreenshotResponse(analysis) {
         const responseContainer = document.getElementById('screenshot-response');
+        // NOTE: Screenshot responses might use Markdown, so we apply formatting.
+        const formattedAnalysis = this.formatAIResponse(analysis);
         responseContainer.style.display = 'block';
         responseContainer.innerHTML = `
             <div class="response-header">
@@ -321,7 +387,7 @@ class ChromeAISidePanel {
                     <button class="copy-btn" onclick="navigator.clipboard.writeText('${analysis.replace(/'/g, "\\'")}')">📋 Copy</button>
                 </div>
             </div>
-            <div class="response-content">${analysis}</div>
+            <div class="response-content">${formattedAnalysis}</div>
         `;
     }
 
@@ -357,6 +423,183 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         return { email, password };
     }
 
+    // === Password Reset Methods ===
+    showResetRequestForm() {
+        document.getElementById('auth-form-container').style.display = 'none';
+        document.getElementById('reset-request-form').style.display = 'block';
+        document.getElementById('reset-password-form').style.display = 'none';
+    }
+
+    showResetPasswordForm() {
+        document.getElementById('auth-form-container').style.display = 'none';
+        document.getElementById('reset-request-form').style.display = 'none';
+        document.getElementById('reset-password-form').style.display = 'block';
+    }
+
+    showLoginForm() {
+        document.getElementById('auth-form-container').style.display = 'block';
+        document.getElementById('reset-request-form').style.display = 'none';
+        document.getElementById('reset-password-form').style.display = 'none';
+        // Clear messages
+        document.getElementById('auth-message').textContent = '';
+        document.getElementById('reset-request-message').textContent = '';
+        document.getElementById('reset-password-message').textContent = '';
+    }
+
+    async handlePasswordResetRequest() {
+        const email = document.getElementById('reset-email').value.trim();
+        const messageEl = document.getElementById('reset-request-message');
+        messageEl.textContent = '';
+
+        if (!email) {
+            messageEl.textContent = 'Please enter your email address.';
+            return;
+        }
+
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/auth/reset-password-request`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // In development, show the reset token
+                if (data.dev_token) {
+                    messageEl.textContent = `Reset token for development: ${data.dev_token}`;
+                    this.showResetPasswordForm();
+                } else {
+                    messageEl.textContent = data.message;
+                }
+                messageEl.className = 'auth-message success';
+            } else {
+                messageEl.textContent = data.error || 'Failed to request password reset.';
+                messageEl.className = 'auth-message error';
+            }
+        } catch (error) {
+            messageEl.textContent = 'Network error. Is the backend running?';
+            messageEl.className = 'auth-message error';
+            console.error('Password reset request error:', error);
+        }
+    }
+
+    async handlePasswordReset() {
+        const email = document.getElementById('reset-email').value.trim();
+        const token = document.getElementById('reset-token').value.trim();
+        const newPassword = document.getElementById('new-password').value;
+        const confirmPassword = document.getElementById('confirm-password').value;
+        const messageEl = document.getElementById('reset-password-message');
+        messageEl.textContent = '';
+
+        if (!email || !token || !newPassword || !confirmPassword) {
+            messageEl.textContent = 'Please fill in all fields.';
+            return;
+        }
+
+        if (newPassword !== confirmPassword) {
+            messageEl.textContent = 'Passwords do not match.';
+            return;
+        }
+
+        if (!this.validatePassword('new-password')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/auth/reset-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email,
+                    token,
+                    new_password: newPassword
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                messageEl.textContent = data.message;
+                messageEl.className = 'auth-message success';
+                // After successful reset, show login form after a delay
+                setTimeout(() => this.showLoginForm(), 2000);
+            } else {
+                messageEl.textContent = data.error || 'Failed to reset password.';
+                messageEl.className = 'auth-message error';
+            }
+        } catch (error) {
+            messageEl.textContent = 'Network error. Is the backend running?';
+            messageEl.className = 'auth-message error';
+            console.error('Password reset error:', error);
+        }
+    }
+
+    validatePassword(inputId) {
+        const password = document.getElementById(inputId).value;
+        const requirements = document.getElementById('password-requirements');
+        
+        // Show requirements on focus
+        if (inputId === 'auth-password') {
+            document.getElementById(inputId).addEventListener('focus', () => {
+                requirements.style.display = 'block';
+            });
+            document.getElementById(inputId).addEventListener('blur', () => {
+                requirements.style.display = 'none';
+            });
+        }
+
+        const isValid = 
+            password.length >= 8 && 
+            /[0-9]/.test(password) && 
+            /[!@#$%^&*]/.test(password);
+
+        if (!isValid) {
+            const messageEl = inputId === 'auth-password' ? 
+                document.getElementById('auth-message') :
+                document.getElementById('reset-password-message');
+            
+            messageEl.textContent = 'Password must be at least 8 characters and include numbers and special characters.';
+            messageEl.className = 'auth-message error';
+        }
+
+        return isValid;
+    }
+
+    checkPasswordsMatch() {
+        const newPassword = document.getElementById('new-password').value;
+        const confirmPassword = document.getElementById('confirm-password').value;
+        const messageEl = document.getElementById('reset-password-message');
+
+        if (confirmPassword) {
+            if (newPassword !== confirmPassword) {
+                messageEl.textContent = 'Passwords do not match.';
+                messageEl.className = 'auth-message error';
+                return false;
+            } else {
+                messageEl.textContent = 'Passwords match.';
+                messageEl.className = 'auth-message success';
+                return true;
+            }
+        }
+        return false;
+    }
+
+    togglePasswordVisibility(inputId) {
+        const input = document.getElementById(inputId);
+        const button = document.getElementById(`${inputId}-toggle`);
+        const eyeIcon = button.querySelector('.eye-icon');
+
+        if (input.type === 'password') {
+            input.type = 'text';
+            eyeIcon.style.opacity = '1';
+        } else {
+            input.type = 'password';
+            eyeIcon.style.opacity = '0.6';
+        }
+    }
+
     async handleAuth(action) {
         const { email, password } = this.getAuthCredentials();
         const messageEl = document.getElementById('auth-message');
@@ -364,6 +607,10 @@ async analyzeImageWithBackend(imageDataUrl, query) {
 
         if (!email || !password) {
             messageEl.textContent = 'Please enter both email and password.';
+            return;
+        }
+
+        if (action === 'register' && !this.validatePassword('auth-password')) {
             return;
         }
 
@@ -606,7 +853,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         const statusElement = document.getElementById('status-message');
         if (statusElement) {
             statusElement.textContent = message;
-            statusElement.className = `status-${type}`;
+            statusElement.className = `status-message ${type}`;
             setTimeout(() => {
                 statusElement.textContent = '';
             }, 3000);
@@ -695,6 +942,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
                 case 'translate':
                 case 'simplify':
                 case 'voice-reader':
+                    // Use sendMessageToContentScript for robustness
                     await this.loadTextForFeature(featureName, tab.id);
                     this.initializeVoiceReader();
                     break;
@@ -716,13 +964,14 @@ async analyzeImageWithBackend(imageDataUrl, query) {
             }
         } catch (error) {
             console.warn('Could not load content for feature:', featureName, error);
+            this.showStatus('❌ Error loading content. Ensure the page is fully loaded.', 'error');
         }
     }
 
     async loadTextForFeature(featureName, tabId) {
         try {
-            // Get selected text first
-            const selectedResponse = await chrome.tabs.sendMessage(tabId, { type: 'GET_SELECTED_TEXT' });
+            // Get selected text first using the robust sender
+            const selectedResponse = await this.sendMessageToContentScript(tabId, { type: 'GET_SELECTED_TEXT' });
             const selectedText = selectedResponse?.text || '';
             
             const previewElement = document.getElementById(`${featureName}-preview`);
@@ -732,14 +981,15 @@ async analyzeImageWithBackend(imageDataUrl, query) {
                     previewElement.textContent = selectedText;
                 } else {
                     // Show placeholder message
-                    previewElement.textContent = 'No text selected. Please select text on the webpage or use "Whole Page" option.';
+                    // Note: Since 'Whole Page' is removed from some features, the text now guides to selection.
+                    previewElement.textContent = 'No text selected. Please select text on the webpage.';
                 }
             }
         } catch (error) {
             console.warn('Could not load text for feature:', featureName, error);
             const previewElement = document.getElementById(`${featureName}-preview`);
             if (previewElement) {
-                previewElement.textContent = 'Could not load text from the webpage.';
+                previewElement.textContent = `Error loading text content. Please try again. (Detail: ${error.message})`;
             }
         }
     }
@@ -764,7 +1014,8 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         this.showStatus('🤖 Processing with AI...', 'info');
         
         try {
-            const response = await this.callHybridAPI('/api/hybrid/prompt', {
+            // REROUTE TO CONTENT SCRIPT'S CALLAI
+            const response = await this.callContentScriptAI('PROMPT', {
                 prompt: prompt,
                 accessibilityMode: currentProfile,
                 userId: userId
@@ -785,7 +1036,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         const previewElement = document.getElementById('proofread-preview');
         const textToProofread = previewElement.textContent.trim();
         
-        if (!textToProofread || textToProofread === 'No text selected. Please select text on the webpage first.') {
+        if (!textToProofread || textToProofread.includes('No text selected')) {
             this.showStatus('Please select text on the webpage first.', 'error');
             return;
         }
@@ -802,9 +1053,10 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         this.showStatus('🔍 Checking grammar...', 'info');
         
         try {
+            // REROUTE TO CONTENT SCRIPT'S CALLAI
             const prompt = `Proofread the following text for grammar, spelling, punctuation, and style improvements. Provide the corrected version and highlight any major issues found:\n\nSelected text: ${textToProofread}`;
             
-            const response = await this.callHybridAPI('/api/hybrid/prompt', {
+            const response = await this.callContentScriptAI('PROOFREAD', {
                 prompt: prompt,
                 accessibilityMode: currentProfile,
                 userId: userId
@@ -825,7 +1077,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         const previewElement = document.getElementById('summarize-preview');
         const textToSummarize = previewElement.textContent.trim();
         
-        if (!textToSummarize || textToSummarize === 'No text selected. Please select text on the webpage first.') {
+        if (!textToSummarize || textToSummarize.includes('No text selected')) {
             this.showStatus('Please select text on the webpage first.', 'error');
             return;
         }
@@ -842,9 +1094,10 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         this.showStatus('📄 Summarizing content...', 'info');
 
         try {
+            // REROUTE TO CONTENT SCRIPT'S CALLAI
             const prompt = `Summarize the following document into a ${summaryLength} summary:\n\nDocument text: ${textToSummarize}`;
             
-            const response = await this.callHybridAPI('/api/hybrid/prompt', {
+            const response = await this.callContentScriptAI('SUMMARIZE', {
                 prompt: prompt,
                 accessibilityMode: currentProfile,
                 userId: userId
@@ -866,7 +1119,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         const previewElement = document.getElementById('translate-preview');
         const textToTranslate = previewElement.textContent.trim();
         
-        if (!textToTranslate || textToTranslate === 'No text selected. Please select text on the webpage first.') {
+        if (!textToTranslate || textToTranslate.includes('No text selected')) {
             this.showStatus('Please select text on the webpage first.', 'error');
             return;
         }
@@ -883,9 +1136,10 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         this.showStatus('🌐 Translating...', 'info');
 
         try {
+            // REROUTE TO CONTENT SCRIPT'S CALLAI
             const prompt = `Translate the following text to ${targetLanguage}. Provide only the translation:\n\n${textToTranslate}`;
             
-            const response = await this.callHybridAPI('/api/hybrid/prompt', {
+            const response = await this.callContentScriptAI('TRANSLATE', {
                 prompt: prompt,
                 accessibilityMode: currentProfile,
                 userId: userId
@@ -907,7 +1161,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         const previewElement = document.getElementById('simplify-preview');
         const textToSimplify = previewElement.textContent.trim();
         
-        if (!textToSimplify || textToSimplify === 'No text selected. Please select text on the webpage first.') {
+        if (!textToSimplify || textToSimplify.includes('No text selected')) {
             this.showStatus('Please select text on the webpage first.', 'error');
             return;
         }
@@ -924,7 +1178,8 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         this.showStatus('📝 Simplifying text...', 'info');
 
         try {
-            const response = await this.callHybridAPI('/api/hybrid/simplify', {
+            // REROUTE TO CONTENT SCRIPT'S CALLAI
+            const response = await this.callContentScriptAI('SIMPLIFY', {
                 text: textToSimplify,
                 level: simplifyLevel,
                 accessibilityMode: currentProfile,
@@ -932,7 +1187,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
             });
 
             if (response.success) {
-                this.showSimplifyResponse(response.simplified);
+                this.showSimplifyResponse(response.response);
             } else {
                 this.showStatus('Error: ' + response.error, 'error');
                 responseContainer.style.display = 'none';
@@ -1179,6 +1434,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
     // === RESPONSE DISPLAY METHODS ===
     showPromptResponse(response) {
         const responseContainer = document.getElementById('prompt-response');
+        const formattedResponse = this.formatAIResponse(response);
         responseContainer.style.display = 'block';
         responseContainer.innerHTML = `
             <div class="response-header">
@@ -1187,12 +1443,13 @@ async analyzeImageWithBackend(imageDataUrl, query) {
                     <button class="copy-btn" onclick="navigator.clipboard.writeText('${response.replace(/'/g, "\\'")}')">📋 Copy</button>
                 </div>
             </div>
-            <div class="response-content">${response}</div>
+            <div class="response-content">${formattedResponse}</div>
         `;
     }
 
     showProofreadResponse(response) {
         const responseContainer = document.getElementById('proofread-response');
+        const formattedResponse = this.formatAIResponse(response);
         responseContainer.style.display = 'block';
         responseContainer.innerHTML = `
             <div class="response-header">
@@ -1201,12 +1458,13 @@ async analyzeImageWithBackend(imageDataUrl, query) {
                     <button class="copy-btn" onclick="navigator.clipboard.writeText('${response.replace(/'/g, "\\'")}')">📋 Copy</button>
                 </div>
             </div>
-            <div class="response-content">${response}</div>
+            <div class="response-content">${formattedResponse}</div>
         `;
     }
 
     showSummarizeResponse(response) {
         const responseContainer = document.getElementById('summarize-response');
+        const formattedResponse = this.formatAIResponse(response);
         responseContainer.style.display = 'block';
         responseContainer.innerHTML = `
             <div class="response-header">
@@ -1215,12 +1473,13 @@ async analyzeImageWithBackend(imageDataUrl, query) {
                     <button class="copy-btn" onclick="navigator.clipboard.writeText('${response.replace(/'/g, "\\'")}')">📋 Copy</button>
                 </div>
             </div>
-            <div class="response-content">${response}</div>
+            <div class="response-content">${formattedResponse}</div>
         `;
     }
 
     showTranslateResponse(response) {
         const responseContainer = document.getElementById('translate-response');
+        const formattedResponse = this.formatAIResponse(response);
         responseContainer.style.display = 'block';
         responseContainer.innerHTML = `
             <div class="response-header">
@@ -1229,12 +1488,13 @@ async analyzeImageWithBackend(imageDataUrl, query) {
                     <button class="copy-btn" onclick="navigator.clipboard.writeText('${response.replace(/'/g, "\\'")}')">📋 Copy</button>
                 </div>
             </div>
-            <div class="response-content">${response}</div>
+            <div class="response-content">${formattedResponse}</div>
         `;
     }
 
     showSimplifyResponse(response) {
         const responseContainer = document.getElementById('simplify-response');
+        const formattedResponse = this.formatAIResponse(response);
         responseContainer.style.display = 'block';
         responseContainer.innerHTML = `
             <div class="response-header">
@@ -1243,7 +1503,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
                     <button class="copy-btn" onclick="navigator.clipboard.writeText('${response.replace(/'/g, "\\'")}')">📋 Copy</button>
                 </div>
             </div>
-            <div class="response-content">${response}</div>
+            <div class="response-content">${formattedResponse}</div>
         `;
     }
 
@@ -1251,8 +1511,12 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         const responseContainer = document.getElementById('ocr-translate-response');
         const responseContent = document.getElementById('ocr-response-content');
         
+        // Simple newline formatting for OCR output (which is often structured but not full Markdown)
+        // const formattedResponse = response.replace(/\r?\n/g, '<br>'); // ORIGINAL LINE
+        const formattedResponse = this.formatAIResponse(response); // FIX: Use the full AI formatter for consistent styling and bolding support.
+        
         responseContainer.style.display = 'block';
-        responseContent.textContent = response;
+        responseContent.innerHTML = formattedResponse;
     }
 
     copyOCRResponse() {
@@ -1269,65 +1533,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         this.showStatus('🗑️ OCR response cleared.', 'info');
     }
 
-    // === UTILITY METHODS ===
-    async callHybridAPI(endpoint, data) {
-        try {
-            const response = await fetch(`${BACKEND_URL}${endpoint}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            
-            if (!response.ok) {
-                throw new Error(`Backend error: ${response.status}`);
-            }
-            
-            const result = await response.json();
-            
-            // If backend says to use on-device, delegate to background script
-            if (result.source === 'on-device') {
-                console.log('✅ Backend instructed to use On-Device AI. DELEGATING to Background Service Worker...');
-                
-                try {
-                    const localResponse = await chrome.runtime.sendMessage({
-                        type: 'RUN_LOCAL_GEMINI',
-                        prompt: data.prompt || this.generatePromptFromData(data)
-                    });
-
-                    if (localResponse && localResponse.success) {
-                        console.log('✅ Local AI responded from background.');
-                        return { success: true, response: localResponse.response };
-                    } else {
-                        throw new Error(localResponse?.error || 'Background local AI execution failed.');
-                    }
-                } catch (backgroundError) {
-                    console.error('❌ Failed to communicate with background local AI:', backgroundError);
-                    console.log('⚠️ Falling through to Cloud Fallback...');
-                    
-                    // Fallback: Force a cloud call
-                    const cloudData = await fetch(`${BACKEND_URL}${endpoint}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ...data, useCloud: true })
-                    });
-                    
-                    if (!cloudData.ok) {
-                        throw new Error(`Cloud fallback failed: ${cloudData.status}`);
-                    }
-                    
-                    const cloudResult = await cloudData.json();
-                    console.log('✅ Cloud AI responded (Fallback)');
-                    return cloudResult;
-                }
-            }
-            
-            return result;
-        } catch (error) {
-            console.error('Hybrid API call failed:', error);
-            throw error;
-        }
-    }
-
+    // === UTILITY METHODS (Direct Backend Calls for Multimodal) ===
     async callBackendAPI(endpoint, data) {
         try {
             const response = await fetch(`${BACKEND_URL}${endpoint}`, {
@@ -1347,19 +1553,30 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         }
     }
 
-    generatePromptFromData(data) {
-        // Generate appropriate prompts based on the feature type
-        if (data.text) {
-            if (data.level) {
-                return `Simplify this text for someone with ${data.level} reading needs:\n\n${data.text}`;
-            } else {
-                return `Process the following text:\n\n${data.text}`;
-            }
+    // === NEW UTILITY METHOD: Reroute to Content Script's callAI ===
+    async callContentScriptAI(feature, data) {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        
+        if (!tab || !tab.id) {
+            // This error will be thrown to the catch block in the handlers
+            throw new Error('No active tab found. Please reload the webpage.'); 
         }
-        return data.prompt || 'Please help me with this request.';
+
+        // Use the robust message sender
+        const response = await this.sendMessageToContentScript(tab.id, {
+            type: 'SIDE_PANEL_CALL_AI', // New message type for content script listener
+            feature: feature,
+            data: data
+        });
+
+        if (response.success) {
+            return { success: true, response: response.response };
+        } else {
+            throw new Error(response.error || 'Content script AI execution failed.');
+        }
     }
 
-    // === TEXT SOURCE MANAGEMENT ===
+    // === TEXT SOURCE MANAGEMENT (Modified) ===
     async switchTextSource(featureName, source) {
         try {
             // Try multiple id patterns to support 'voice-selected-btn' vs 'voice-reader-selected-btn'
@@ -1372,13 +1589,21 @@ async analyzeImageWithBackend(imageDataUrl, query) {
                 if (!pageBtn) pageBtn = document.getElementById(`${b}-page-btn`) || document.getElementById(`${b}-page`);
             }
 
-            if (!selectedBtn || !pageBtn) {
+            if (!selectedBtn) {
                 console.error('Source buttons not found for feature:', featureName);
                 return;
             }
-
-            selectedBtn.classList.toggle('active', source === 'selected');
-            pageBtn.classList.toggle('active', source === 'page');
+            
+            // Only toggle the active class if the 'page' button exists (i.e., for features like Voice Reader)
+            if (pageBtn) {
+                selectedBtn.classList.toggle('active', source === 'selected');
+                pageBtn.classList.toggle('active', source === 'page');
+            } else {
+                 // For Proofread/Summarize/Translate (only Selected Text exists now), ensure it's active
+                 selectedBtn.classList.add('active');
+                 source = 'selected'; // Force source back to selected
+            }
+            
 
             // Load appropriate text
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -1388,14 +1613,17 @@ async analyzeImageWithBackend(imageDataUrl, query) {
             }
 
             let text = '';
+            let response = null;
 
+            // --- MODIFIED CALLS TO USE THE ROBUST MESSAGE SENDER ---
             if (source === 'selected') {
-                const response = await chrome.tabs.sendMessage(tab.id, { type: 'GET_SELECTED_TEXT' });
-                text = response?.text || '';
+                response = await this.sendMessageToContentScript(tab.id, { type: 'GET_SELECTED_TEXT' });
             } else {
-                const response = await chrome.tabs.sendMessage(tab.id, { type: 'GET_PAGE_TEXT' });
-                text = response?.text || '';
+                response = await this.sendMessageToContentScript(tab.id, { type: 'GET_PAGE_TEXT' });
             }
+            // --------------------------------------------------------
+            
+            text = response?.text || '';
 
             // Support multiple preview id patterns as well
             const previewCandidates = [`${featureName}-preview`, `${featureName.split('-')[0]}-preview`, `${featureName}-text-preview`];
@@ -1415,7 +1643,8 @@ async analyzeImageWithBackend(imageDataUrl, query) {
             // Show a user-friendly error in the UI
             const previewElement = document.getElementById(`${featureName}-preview`);
             if (previewElement) {
-                previewElement.textContent = 'Error loading text content. Please try again.';
+                previewElement.textContent = `Error loading text content. Please try again. (Detail: ${error.message})`;
+                this.showStatus('❌ Text loading failed. Try reloading the page.', 'error');
             }
         }
     }
@@ -1583,7 +1812,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         const insightsText = document.getElementById('insights-text');
         
         sessionInfo.textContent = `Sessions Analyzed: ${sessionCount}`;
-        insightsText.textContent = insights;
+        insightsText.innerHTML = this.formatAIResponse(insights); // Format the response
     }
 
     showInsightsError(error) {
@@ -1748,7 +1977,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       const file = files[0];
       const fileType = file.name.toLowerCase().endsWith('.pdf') ? 'PDF' : 'Word document';
-      showStatus(`Uploading ${fileType}...`, 'info');
+      showStatus(`Uploading ${fileType}টিও...`, 'info');
       
       try {
         const form = new FormData();
@@ -1837,7 +2066,8 @@ document.addEventListener('DOMContentLoaded', () => {
             resultText += j.proofread + '\n\n';
           }
           
-          resultContent.textContent = resultText;
+          // Apply formatting to the result before setting the content
+          resultContent.innerHTML = new ChromeAISidePanel().formatAIResponse(resultText); 
           pdfResult.style.display = 'block';
           showStatus('AI processing completed successfully!', 'success');
         } else {
