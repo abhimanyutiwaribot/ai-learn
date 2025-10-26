@@ -3,10 +3,10 @@
   "name": "ChromeAI Plus - AI-Powered Accessibility Assistant",
   "version": "1.0.0",
   "description": "First voice reader that understands what it's reading. AI-powered accessibility for students with learning differences.",
-  "key": "YOUR_EXTENSION_PUBLIC_KEY",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsifiZBteePAoWprdr0QAgIEGfYyEazu8IVND15/PfD9/EIS9yIGCDOzNCaPjSMPf/8tfweDDLruTJNjuCcghiXGVEdXyVjMeiAvg6+Py/Kseua++iJFSfB9r7m6eizEafR0wrUE1ZdBbzMXjKfnjM05eL8/1cW/38nMSDkIVeZHUkq12TDvnMFMimmuU9fPw3KfPPRDuPrUyntn1pufVM2qHgquGIHcCRk/lgHZn1VY6rlRr9Z918gcCQRpAOtFhfcs+eLGiqX44R29h5NCaXwWMc85jECKOPJoRa7OTsH7EXGtPyuQbEtf2Odjw5nmx0nRBcl1RBuhOPH9p8i3X0QIDAQAB",
   "trial_tokens": [
-    "YOUR_TRIAL_TOKEN_1",
-    "YOUR_TRIAL_TOKEN_2"
+    "A9iXx4NRDmWyB5Kk8tXle2abap4gNSNliIRzZGeuoFgdBtcqgXkDyibeNX6SDlUhgpoTGRJsbHzpq9zmiHxGIQEAAACPeyJvcmlnaW4iOiJjaHJvbWUtZXh0ZW5zaW9uOi8vb2JqamNsZmlpbWJmbGpsZGJpb2NlaWhlYWhvYW9ha20iLCJmZWF0dXJlIjoiQUlQcm9tcHRBUElNdWx0aW1vZGFsSW5wdXQiLCJleHBpcnkiOjE3NzQzMTA0MDAsImlzVGhpcmRQYXJ0eSI6dHJ1ZX0=",
+    "Aygxsk2fUhFsPMoChODfEhLlUPPU+bVIZIVZjvFzniWyNOtqeQk8EggFOXPXAoS72nV3ifKGG/pXw+Wouy8LRwMAAACFeyJvcmlnaW4iOiJjaHJvbWUtZXh0ZW5zaW9uOi8vb2JqamNsZmlpbWJmbGpsZGJpb2NlaWhlYWhvYW9ha20iLCJmZWF0dXJlIjoiQUlQcm9vZnJlYWRlckFQSSIsImV4cGlyeSI6MTc3OTE0ODgwMCwiaXNUaGlyZFBhcnR5Ijp0cnVlfQ=="
   ],
   "permissions": [ 
     "activeTab",
@@ -56,7 +56,7 @@
         "styles/accessibility.css"
       ],
       "run_at": "document_end",
-      "all_frames": true
+      "all_frames": false
     },
     {
       "matches": [
