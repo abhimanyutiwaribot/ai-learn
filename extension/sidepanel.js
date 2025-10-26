@@ -332,7 +332,17 @@ class ChromeAISidePanel {
         `;
         responseContainer.style.display = 'block';
 
-        await this.analyzeScreenshotWithAI(this.currentScreenshotData, query);
+        // 🐛 FIX 8: Add log for Screenshot submission
+        console.log(`📸 [SCREENSHOT] Sending screenshot analysis request to backend API...`);
+
+        try {
+            const analysis = await this.analyzeImageWithBackend(this.currentScreenshotData, query);
+            this.showScreenshotResponse(analysis);
+            this.logFeatureUsage('SCREENSHOT');
+            console.log(`✅ [SCREENSHOT] Received response from backend API.`);
+        } catch (error) {
+            this.showStatus('❌ AI analysis failed: ' + error.message, 'error');
+        }
     }
 
     async handleQuickScreenshotAnalysis() {
@@ -564,6 +574,43 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         }
     }
 
+    // === LOGGING/ANALYTICS (UPDATED) ===
+    async logFeatureUsage(feature) {
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            
+            // 🐛 FIX 1: Safely extract hostname, defaulting to 'extension' if URL is unavailable or invalid.
+            let documentType = 'extension_internal'; 
+            if (tab && tab.url && tab.url.startsWith('http')) {
+                try {
+                    documentType = new URL(tab.url).hostname;
+                } catch (e) {
+                    documentType = 'invalid_url';
+                }
+            }
+
+            const response = await fetch(`${BACKEND_URL}/api/analytics/session`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId,
+                    documentType: documentType,
+                    featuresUsed: [feature],
+                    accessibilityMode: currentProfile
+                })
+            });
+            
+            if (response.ok) {
+                console.log(`✅ [Analytics] Session log for '${feature}' sent successfully to backend.`);
+            } else {
+                console.error(`❌ [Analytics] Failed to log usage for ${feature}: Backend status ${response.status}`);
+            }
+
+        } catch (error) {
+            console.error(`❌ [Analytics] Failed to log usage for ${feature}:`, error);
+        }
+    }
+
     // === SETTINGS MANAGEMENT ===
     applySettings(settings) {
         if (settings.dyslexiaFont) document.getElementById('dyslexia-font').checked = true;
@@ -626,24 +673,6 @@ async analyzeImageWithBackend(imageDataUrl, query) {
     }
 
     // === UTILITY METHODS ===
-    async logFeatureUsage(feature) {
-        try {
-            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            await fetch(`${BACKEND_URL}/api/analytics/session`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    userId,
-                    documentType: new URL(tab.url).hostname,
-                    featuresUsed: [feature],
-                    accessibilityMode: currentProfile
-                })
-            });
-        } catch (error) {
-            console.error('Failed to log:', error);
-        }
-    }
-
     showStatus(message, type = '') {
         // Create a simple status display
         console.log(`${type}: ${message}`);
@@ -793,7 +822,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         }
     }
 
-    // === FEATURE HANDLERS ===
+    // === FEATURE HANDLERS (UPDATED WITH LOGGING) ===
     async handlePromptSubmit() {
         const prompt = document.getElementById('prompt-input').value.trim();
         if (!prompt) {
@@ -812,6 +841,9 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         
         this.showStatus('🤖 Processing with AI...', 'info');
         
+        // 🐛 FIX 2: Add log for prompt submission
+        console.log(`🧠 [PROMPT] Sending prompt to content script...`);
+        
         try {
             // REROUTE TO CONTENT SCRIPT'S CALLAI
             const response = await this.callContentScriptAI('PROMPT', {
@@ -822,6 +854,8 @@ async analyzeImageWithBackend(imageDataUrl, query) {
 
             if (response.success) {
                 this.showPromptResponse(response.response);
+                this.logFeatureUsage('PROMPT');
+                console.log(`✅ [PROMPT] Received response from content script.`);
             } else {
                 this.showStatus('Error: ' + response.error, 'error');
             }
@@ -851,6 +885,9 @@ async analyzeImageWithBackend(imageDataUrl, query) {
 
         this.showStatus('🔍 Checking grammar...', 'info');
         
+        // 🐛 FIX 3: Add log for proofread submission
+        console.log(`🔤 [PROOFREAD] Sending proofreading request to content script...`);
+        
         try {
             // REROUTE TO CONTENT SCRIPT'S CALLAI
             const prompt = `Proofread the following text for grammar, spelling, punctuation, and style improvements. Provide the corrected version and highlight any major issues found:\n\nSelected text: ${textToProofread}`;
@@ -863,6 +900,8 @@ async analyzeImageWithBackend(imageDataUrl, query) {
 
             if (response.success) {
                 this.showProofreadResponse(response.response);
+                this.logFeatureUsage('PROOFREAD');
+                console.log(`✅ [PROOFREAD] Received response from content script.`);
             } else {
                 this.showStatus('Error: ' + response.error, 'error');
             }
@@ -892,6 +931,9 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         responseContainer.style.display = 'block';
         this.showStatus('📄 Summarizing content...', 'info');
 
+        // 🐛 FIX 4: Add log for summarize submission
+        console.log(`📄 [SUMMARIZE] Sending summarization request to content script...`);
+
         try {
             // REROUTE TO CONTENT SCRIPT'S CALLAI
             const prompt = `Summarize the following document into a ${summaryLength} summary:\n\nDocument text: ${textToSummarize}`;
@@ -904,6 +946,8 @@ async analyzeImageWithBackend(imageDataUrl, query) {
 
             if (response.success) {
                 this.showSummarizeResponse(response.response);
+                this.logFeatureUsage('SUMMARIZE');
+                console.log(`✅ [SUMMARIZE] Received response from content script.`);
             } else {
                 this.showStatus('Error: ' + response.error, 'error');
                 responseContainer.style.display = 'none';
@@ -933,6 +977,9 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         `;
         responseContainer.style.display = 'block';
         this.showStatus('🌐 Translating...', 'info');
+        
+        // 🐛 FIX 5: Add log for translate submission
+        console.log(`🌐 [TRANSLATE] Sending translation request to content script...`);
 
         try {
             // REROUTE TO CONTENT SCRIPT'S CALLAI
@@ -946,6 +993,8 @@ async analyzeImageWithBackend(imageDataUrl, query) {
 
             if (response.success) {
                 this.showTranslateResponse(response.response);
+                this.logFeatureUsage('TRANSLATE');
+                console.log(`✅ [TRANSLATE] Received response from content script.`);
             } else {
                 this.showStatus('Error: ' + response.error, 'error');
                 responseContainer.style.display = 'none';
@@ -975,6 +1024,9 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         `;
         responseContainer.style.display = 'block';
         this.showStatus('📝 Simplifying text...', 'info');
+        
+        // 🐛 FIX 6: Add log for simplify submission
+        console.log(`📝 [SIMPLIFY] Sending simplification request to content script...`);
 
         try {
             // REROUTE TO CONTENT SCRIPT'S CALLAI
@@ -987,6 +1039,8 @@ async analyzeImageWithBackend(imageDataUrl, query) {
 
             if (response.success) {
                 this.showSimplifyResponse(response.response);
+                this.logFeatureUsage('SIMPLIFY');
+                console.log(`✅ [SIMPLIFY] Received response from content script.`);
             } else {
                 this.showStatus('Error: ' + response.error, 'error');
                 responseContainer.style.display = 'none';
@@ -1007,6 +1061,11 @@ async analyzeImageWithBackend(imageDataUrl, query) {
 
         const statusEl = document.getElementById('voice-reader-status');
         if (statusEl) statusEl.textContent = '';
+        
+        // 🐛 FIX 9: Log for Voice Reader initiation
+        this.logFeatureUsage('VOICE_READER'); 
+        console.log(`🔊 [VOICE_READER] Initiating reading attempt and logging usage.`); 
+
 
         // If no preview text is loaded yet, start reading a quick snippet (selected text or title) immediately
         if (!textToRead || textToRead === 'No text available. Please select text or ensure the page has readable content.') {
@@ -1174,6 +1233,9 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         `);
         this.showStatus('🖼️ Extracting and translating text...', 'info');
 
+        // 🐛 FIX 7: Add log for OCR submission
+        console.log(`🖼️ [OCR] Sending OCR/Translate request to backend API...`);
+
         try {
             const response = await this.callBackendAPI('/api/multimodal/ocr-translate', {
                 image: imageData,
@@ -1187,6 +1249,8 @@ async analyzeImageWithBackend(imageDataUrl, query) {
 
             if (response.success) {
                 this.showOCRTranslateResponse(response.result);
+                this.logFeatureUsage('OCR_TRANSLATE');
+                console.log(`✅ [OCR] Received response from backend API.`);
             } else {
                 this.showStatus('Error: ' + response.error, 'error');
             }

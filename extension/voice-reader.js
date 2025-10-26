@@ -323,6 +323,9 @@ class VoiceReader {
         this.stop(); // Stop any existing reading
         const mode = this.readingMode;
 
+        // 🐛 FIX 10: Log for Voice Reader start
+        console.log(`🔊 [Voice Reader] Starting reading in mode: ${mode}`); 
+
         // 1. Handle Selection mode (always fast and synchronous)
         if (mode === 'selection') {
             const selection = window.getSelection().toString();

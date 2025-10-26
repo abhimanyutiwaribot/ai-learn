@@ -127,15 +127,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             prompt = data.text; // Pass raw text
         }
         
+        console.log(`🤖 [Content AI] Received SIDE_PANEL_CALL_AI for ${feature}. Starting AI process...`);
+
         callAI(prompt, options)
             .then(response => {
+                console.log(`✅ [Content AI] AI process for ${feature} succeeded.`);
                 sendResponse({ 
                     success: true, 
                     response: response 
                 });
             })
             .catch(error => {
-                console.error('❌ Content Script AI Error:', error);
+                console.error('❌ [Content AI] AI process failed:', error);
                 showNotification('Error: ' + error.message, 'error');
                 sendResponse({ success: false, error: error.message });
             });
@@ -158,27 +161,35 @@ async function handleActivation(message) {
     
     switch(type) {
         case 'PROMPT':
+            console.log('✨ [Activation] Showing Prompt Interface...');
             await showPromptInterface();
             break;
         case 'PROOFREAD': 
+            console.log('✨ [Activation] Activating Proofreader Mode...');
             await activateProofreaderMode();
             break;
         case 'SUMMARIZE': 
+            console.log('✨ [Activation] Showing Summarizer Options...');
             await showSummarizerOptions();
             break;
         case 'TRANSLATE': 
+            console.log('✨ [Activation] Showing Translator Interface...');
             await showTranslatorInterface();
             break;
         case 'SCREENSHOT':
+            console.log('✨ [Activation] Activating Screenshot Analyzer...');
             await captureAndAnalyzeScreenshot();
             break;
         case 'OCR_TRANSLATE':
+            console.log('✨ [Activation] Activating OCR Translate...');
             await activateOCRTranslate();
             break;
         case 'SIMPLIFY':
+            console.log('✨ [Activation] Activating Simplify Text...');
             await activateSimplify();
             break;
         case 'VOICE_READER':
+            console.log('✨ [Activation] Activating Voice Reader...');
             await activateVoiceReader();
             break;
         case 'FOCUS_MODE':
@@ -241,7 +252,7 @@ async function callAI(prompt, options = {}) {
     // --- FIX 2: Check length before attempting local AI to speed up fallback ---
     let skipLocalAttempt = false;
     if (shouldAttemptLocal && prompt.length > MAX_LOCAL_PROMPT_LENGTH) {
-        console.log(`⏩ Prompt length (${prompt.length}) exceeds local limit (${MAX_LOCAL_PROMPT_LENGTH}). Skipping local AI attempt.`);
+        console.log(`⏩ [Hybrid] Prompt length (${prompt.length}) exceeds local limit (${MAX_LOCAL_PROMPT_LENGTH}). Skipping local AI attempt.`);
         skipLocalAttempt = true;
     }
     // -------------------------------------------------------------------------
@@ -257,7 +268,7 @@ async function callAI(prompt, options = {}) {
 
             if (LanguageModel) {
                 const availability = await LanguageModel.availability();
-                console.log('📊 Local AI availability (Content Script):', availability);
+                console.log('📊 [Hybrid] Local AI availability (Content Script):', availability);
 
                 // --- Apply Accessibility Prompt Logic ---
                 // The Proofreader OT capability is enabled via the token. We use the same languageModel API.
@@ -266,7 +277,7 @@ async function callAI(prompt, options = {}) {
 
                 // CRITICAL FIX: Check for BOTH 'readily' and 'available'
                 if (availability === 'readily' || availability === 'available') {
-                    console.log('🔍 Using Local Gemini Nano (Content Script Direct)...');
+                    console.log('🔍 [Hybrid] Using Local Gemini Nano (Content Script Direct)...');
 
                     const session = await LanguageModel.create({
                         // Pass the custom system prompt here
@@ -277,33 +288,33 @@ async function callAI(prompt, options = {}) {
                     const result = await session.prompt(prompt);
                     session.destroy();
 
-                    console.log('✅ Local AI responded successfully (Content Script Result)');
+                    console.log('✅ [Hybrid] Local AI responded successfully (Content Script Result)');
                     showNotification('✓ Using on-device AI', 'success');
                     return result;
                 } else if (availability === 'after-download' || availability === 'downloadable') {
                     // Do nothing, let it fall through to cloud.
-                    console.log('⏳ Model needs download or is downloading, skipping local and using cloud...');
+                    console.log('⏳ [Hybrid] Model needs download or is downloading, skipping local and using cloud...');
                 }
             }
         } catch (localError) {
-            console.log('❌ Local AI failed, skipping local:', localError.message);
+            console.log('❌ [Hybrid] Local AI failed, skipping local:', localError.message);
             // Continue to cloud fallback
         }
     } else {
-        console.log(`⏩ Skipping local AI check for feature: ${feature}. Proceeding directly to Cloud.`);
+        console.log(`⏩ [Hybrid] Skipping local AI check for feature: ${feature}. Proceeding directly to Cloud.`);
     }
 
 
     // ============================================
     // STEP 2: CLOUD FALLBACK (YOUR EXISTING CODE CONTINUES BELOW)
     // ============================================
-    console.log('☁️ Falling back to cloud backend...');
+    console.log('☁️ [Hybrid] Falling back to cloud backend...');
     const isSimplifyCall = options.isSimplify || false;
 
     // Helper for making the actual fetch call (used for both hybrid and forced cloud)
     const performFetch = async (forceCloud) => {
         let endpoint = isSimplifyCall ? `${BACKEND_URL}/api/hybrid/simplify` : `${BACKEND_URL}/api/hybrid/prompt`;
-        console.log(`📡 Fetching from backend (Cloud forced: ${forceCloud})...`);
+        console.log(`📡 [Cloud] Fetching from backend (Cloud forced: ${forceCloud})...`);
 
         const requestBody = isSimplifyCall ? {
             text: prompt,
@@ -342,7 +353,7 @@ async function callAI(prompt, options = {}) {
 
         // 2. Check instruction: If backend says 'on-device', client must delegate it.
         if (data.source === 'on-device') {
-            console.log('⚠️ Backend instructed to use On-Device AI, but delegation to background is disabled. Forcing Cloud fallback...');
+            console.log('⚠️ [Cloud] Backend instructed to use On-Device AI, but delegation to background is disabled. Forcing Cloud fallback...');
 
             // 3. Fallback: Force a cloud call (useCloud: true) if local execution failed
             const cloudData = await performFetch(true);
@@ -351,16 +362,16 @@ async function callAI(prompt, options = {}) {
                 throw new Error(cloudData.error || 'Cloud fallback failed');
             }
 
-            console.log('✅ Cloud AI responded (Forced Fallback)');
+            console.log('✅ [Cloud] Cloud AI responded (Forced Fallback)');
             return isSimplifyCall ? cloudData.simplified : cloudData.response;
         }
 
         // 4. If backend executed Cloud (e.g., prompt was too long/auto-forced)
-        console.log('✅ AI responded (Cloud executed by backend)');
+        console.log('✅ [Cloud] AI responded (Cloud executed by backend)');
         return isSimplifyCall ? data.simplified : data.response;
 
     } catch (error) {
-        console.error('❌ AI Error:', error);
+        console.error('❌ [Cloud] AI Error:', error);
         throw new Error(`AI unavailable: ${error.message}. Make sure Flask backend is running on port 5000.`);
     }
 }
@@ -533,6 +544,9 @@ async function activateOCRTranslate() {
             </div>
         `;
         
+        // 🐛 FIX 7: Add log for OCR submission (Content Script side)
+        console.log(`🖼️ [OCR] Sending OCR/Translate request to backend API (Content Script)...`);
+
         try {
             const result = await processOCRWithBackend(currentImageData, targetLanguage);
             console.log('✅ OCR completed');
@@ -701,6 +715,9 @@ async function captureAndAnalyzeScreenshot() {
         resultDiv.style.display = 'block';
         resultDiv.innerHTML = '<div style="padding: 12px; background: #e3f2fd; border-radius: 8px;">⏳ Analyzing with Gemini Vision AI...</div>';
         
+        // 🐛 FIX 8: Add log for Screenshot submission (Content Script side)
+        console.log(`📸 [SCREENSHOT] Sending screenshot analysis request to backend API (Content Script)...`);
+
         try {
             const analysis = await analyzeImageWithBackend(capturedImage, query);
             
@@ -1580,4 +1597,15 @@ function addReadingLine() {
 }
 
 console.log('✅ ChromeAI Plus content script ready');
+})();
+(async function initializePDFSupport() {
+    if (window.pdfProcessor && window.pdfProcessor.isPDF()) {
+        console.log('📄 PDF detected, waiting for content load...');
+        const loaded = await window.pdfProcessor.waitForPDFLoad();
+        if (loaded) {
+            console.log('✅ PDF content loaded successfully');
+        } else {
+            console.log('⚠️ PDF content load timeout');
+        }
+    }
 })();
