@@ -16,7 +16,8 @@ function createContextMenus() {
         title: 'Proofread with ChromeAI',
         contexts: ['selection', 'editable']
     });
-
+    
+    // ADDED: Simplify Selected Text to Context Menu
     chrome.contextMenus.create({
         id: 'simplify-selection',
         title: 'Simplify Selected Text',
@@ -45,20 +46,44 @@ function initializeSidePanel() {
 }
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+    // NOTE: ACTIVATE_ types open an overlay in content.js.
+    // We now direct features that need a UI (Translate, Proofread, Simplify) to the Side Panel.
+    
+    let featureToOpen = null;
+    
     const actions = {
-        'translate-selection': { type: 'TRANSLATE_SELECTION', text: info.selectionText },
-        'proofread-selection': { type: 'PROOFREAD_SELECTION', text: info.selectionText },
-        'simplify-selection': { type: 'SIMPLIFY_SELECTION', text: info.selectionText },
-        'read-aloud-selection': { type: 'READ_ALOUD_SELECTION', text: info.selectionText },
-        'open-sidepanel': { type: 'OPEN_SIDE_PANEL' } // NEW
+        'translate-selection': { type: 'ACTIVATE_TRANSLATE', feature: 'translate' },
+        'proofread-selection': { type: 'ACTIVATE_PROOFREAD', feature: 'proofread' },
+        'simplify-selection': { type: 'ACTIVATE_SIMPLIFY', feature: 'simplify' }, 
+        'read-aloud-selection': { type: 'READ_ALOUD_SELECTION' },
+        'open-sidepanel': { type: 'OPEN_SIDE_PANEL' }
     };
 
     if (actions[info.menuItemId]) {
+        const action = actions[info.menuItemId];
+        
         if (info.menuItemId === 'open-sidepanel') {
             // Open side panel directly
             chrome.sidePanel.open({ windowId: tab.windowId });
+        } else if (info.menuItemId === 'read-aloud-selection') {
+            // Read Aloud doesn't need the side panel UI
+            chrome.tabs.sendMessage(tab.id, action.type);
         } else {
-            chrome.tabs.sendMessage(tab.id, actions[info.menuItemId]);
+            // For features that require the Side Panel UI (Translate, Proofread, Simplify)
+            featureToOpen = action.feature;
+            
+            // 1. Open the Side Panel (this ensures it's ready)
+            chrome.sidePanel.open({ windowId: tab.windowId });
+
+            // 2. Send a special message to the Side Panel after a small delay
+            // This message tells the side panel what feature interface to open and passes the selected text.
+            setTimeout(() => {
+                chrome.runtime.sendMessage({
+                    type: 'OPEN_SIDE_PANEL_FEATURE',
+                    feature: featureToOpen,
+                    selectionText: info.selectionText // Pass selection text if available
+                });
+            }, 300); // Small delay for side panel to fully load
         }
     }
 });
@@ -67,10 +92,10 @@ chrome.commands.onCommand.addListener(async (command) => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
     const commandMap = {
-        'simplify-selection': 'SIMPLIFY_SELECTION',
+        'simplify-selection': 'ACTIVATE_SIMPLIFY', 
         'read-aloud': 'READ_ALOUD_SELECTION',
         'screenshot-analyze': 'ACTIVATE_SCREENSHOT',
-        'open-sidepanel': 'OPEN_SIDE_PANEL' // NEW
+        'open-sidepanel': 'OPEN_SIDE_PANEL'
     };
 
     if (commandMap[command]) {
@@ -78,12 +103,34 @@ chrome.commands.onCommand.addListener(async (command) => {
             chrome.sidePanel.open({ windowId: tab.windowId });
         } else {
             chrome.tabs.sendMessage(tab.id, { type: commandMap[command] });
+            
+            // FIX: Open side panel for features that need a UI (Simplify, Screenshot)
+            if (commandMap[command] !== 'READ_ALOUD_SELECTION') {
+                 chrome.sidePanel.open({ windowId: tab.windowId });
+            }
         }
     }
 });
 
 // CRITICAL FIX: Complete screenshot handler
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+
+    // Handle the new message from content.js to open a specific feature in the sidepanel
+    if (request.type === 'REQUEST_OPEN_SIDE_PANEL_FEATURE') {
+        if (sender && sender.tab && sender.tab.windowId) {
+            chrome.sidePanel.open({ windowId: sender.tab.windowId });
+            // Now relay the instruction to the sidepanel script
+            setTimeout(() => {
+                chrome.runtime.sendMessage({
+                    type: 'OPEN_SIDE_PANEL_FEATURE',
+                    feature: request.feature,
+                    selectionText: request.selectionText
+                });
+            }, 300);
+            sendResponse({ success: true });
+        }
+        return true;
+    }
 
     // Handle both CAPTURE_SCREENSHOT and SIDE_PANEL_SCREENSHOT requests
     if (request.type === 'CAPTURE_SCREENSHOT' || request.type === 'SIDE_PANEL_SCREENSHOT') {
