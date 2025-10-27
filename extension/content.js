@@ -10,15 +10,279 @@ let isProcessing = false;
 // The backend URL is assumed to be defined here or globally available
 const BACKEND_URL = 'http://localhost:5000'; 
 
+// Define the standard language list for parity
+const standardLanguageOptions = [
+    { value: 'English', label: 'English' },
+    { value: 'Spanish', label: 'Spanish (Español)' },
+    { value: 'French', label: 'French (Français)' },
+    { value: 'German', label: 'German (Deutsch)' },
+    { value: 'Italian', label: 'Italiano (Italiano)' },
+    { value: 'Portuguese', label: 'Portuguese (Português)' },
+    { value: 'Chinese', label: 'Chinese (中文)' },
+    { value: 'Japanese', label: 'Japanese (日本語)' },
+    { value: 'Korean', label: 'Korean (한국어)' },
+    { value: 'Hindi', label: 'Hindi (हिन्दी)' },
+    { value: 'Arabic', label: 'Arabic (العربية)' }
+];
+
+// Helper function to generate options HTML
+function generateLanguageOptionsHtml(selectedValue) {
+    return standardLanguageOptions.map(lang => 
+        `<option value="${lang.value}" ${lang.value.toLowerCase() === selectedValue.toLowerCase() ? 'selected' : ''}>${lang.label}</option>`
+    ).join('');
+}
+
+
 // ============================================
-// MESSAGE LISTENER (FIX: Added APPLY_PROFILE)
+// NEW: RESPONSE VOICE READER CLASS (For Overlays - Modified)
 // ============================================
+class ResponseVoiceReader {
+    constructor(responseContainerId) {
+        this.synth = window.speechSynthesis;
+        this.responseContainerId = responseContainerId;
+        this.isReading = false;
+        this.isPaused = false;
+        this.ttsData = []; 
+        this.currentSegmentIndex = 0;
+        this.voices = this.synth.getVoices();
+
+        this.synth.onvoiceschanged = () => {
+            this.voices = this.synth.getVoices();
+        };
+    }
+
+    _getButtonHtml(icon, action, label = '', className = '') {
+        return `<button class="tts-control-btn ${className}" data-action="${action}" aria-label="${label}">
+                    <span class="icon">${icon}</span>${label ? `<span>${label}</span>` : ''}
+                </button>`;
+    }
+
+    // Menu HTML removed
+    renderControl() {
+        const iconHtml = this._getButtonHtml('🔊', 'start', '', 'tts-main-btn');
+        return `
+            <div class="tts-container" id="tts-container-${this.responseContainerId}">
+                ${iconHtml}
+            </div>
+        `;
+    }
+
+    attachListeners(responseContentText, isOCR) {
+        const container = document.getElementById(`tts-container-${this.responseContainerId}`);
+        if (!container) return;
+        
+        this.ttsData = this._prepareTTSData(responseContentText, isOCR);
+        
+        container.querySelector('.tts-main-btn').onclick = () => this._handleMainClick();
+        
+        this._updateMainButton('start');
+    }
+
+    _handleMainClick() {
+        if (this.isReading && !this.isPaused) {
+            this.pause();
+        } else if (this.isPaused) {
+            this.resume();
+        } else {
+            this.start();
+        }
+    }
+    
+    // _handleMenuAction removed
+
+    _prepareTTSData(responseText, isOCR) {
+        const segments = [];
+        if (isOCR) {
+            const originalMatch = responseText.match(/ORIGINAL TEXT:\s*([\s\S]*?)\s*TRANSLATION:/i);
+            const translationMatch = responseText.match(/TRANSLATION:\s*([\s\S]*)/i);
+
+            if (originalMatch && originalMatch[1]) {
+                const originalText = originalMatch[1].trim();
+                const lang = this._detectLanguage(originalText) || 'en';
+                segments.push({ text: originalText, lang: lang, label: 'Original Text' });
+            }
+
+            if (translationMatch && translationMatch[1]) {
+                const translatedText = translationMatch[1].trim();
+                const lang = this._detectLanguage(translatedText) || 'en';
+                segments.push({ text: translatedText, lang: lang, label: 'Translation' });
+            }
+        } else {
+            const text = responseText.trim();
+            const lang = this._detectLanguage(text) || 'en';
+            segments.push({ text: text, lang: lang, label: 'Response' });
+        }
+        
+        return segments.filter(s => s.text.length > 0);
+    }
+    
+    // FIX: Improved Language detection
+    _detectLanguage(text) {
+        if (/[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(text)) return 'ko'; 
+        if (/[ぁ-ゔァ-ヴー々〆〤ヶ]/.test(text)) return 'ja'; 
+        if (/[\u4e00-\u9fff]/.test(text)) return 'zh'; 
+        if (/[\u0600-\u06ff]/.test(text)) return 'ar';
+        if (/[\u0900-\u097f]/.test(text)) return 'hi'; 
+        if (/[áéíóúñÁÉÍÓÚÑ¿¡]/.test(text)) return 'es'; 
+        if (/[àâéèêëîïôœùûüÿçÀÂÉÈÊËÎÏÔŒÙÛÜŸÇ]/.test(text)) return 'fr'; 
+        if (/[äöüßÄÖÜẞ]/.test(text)) return 'de'; 
+        return 'en';
+    }
+
+    _getVoice(langCode) {
+        // Map language code to BCP-47 for voice matching
+        const langMap = {
+            'ko': 'ko', 'ja': 'ja', 'zh': 'zh', 'ar': 'ar', 'hi': 'hi', 
+            'es': 'es', 'fr': 'fr', 'de': 'de', 'en': 'en'
+        };
+        const targetLang = langMap[langCode] || 'en';
+
+        const preferredVoice = this.voices.find(v => v.lang.startsWith(targetLang) && v.name.includes('Google')) ||
+                               this.voices.find(v => v.lang.startsWith(targetLang)) ||
+                               this.voices.find(v => v.default && v.lang.startsWith('en')) ||
+                               this.voices[0];
+        return preferredVoice;
+    }
+
+    _updateMainButton(action) {
+        const btn = document.getElementById(`tts-container-${this.responseContainerId}`).querySelector('.tts-main-btn');
+        if (btn) {
+            const iconMap = { 'start': '🔊', 'pause': '⏸️', 'resume': '▶️', 'stop': '⏹️' };
+            btn.innerHTML = `<span class="icon">${iconMap[action]}</span>`;
+            btn.dataset.action = action;
+        }
+    }
+    
+    // _openMenu and _closeMenu removed
+
+    _speakSegment() {
+        if (this.currentSegmentIndex >= this.ttsData.length) {
+            this.stop();
+            return;
+        }
+        
+        const segment = this.ttsData[this.currentSegmentIndex];
+        const utterance = new SpeechSynthesisUtterance(segment.text);
+        utterance.lang = segment.lang;
+        utterance.voice = this._getVoice(segment.lang);
+        
+        utterance.onstart = () => { this._updateMainButton('stop'); };
+        
+        utterance.onend = () => {
+            this.currentSegmentIndex++;
+            if (this.currentSegmentIndex < this.ttsData.length) {
+                setTimeout(() => this._speakSegment(), 500); 
+            } else { this.stop(); }
+        };
+        
+        utterance.onerror = (e) => { console.error('TTS Error:', e); this.stop(); };
+
+        this.synth.speak(utterance);
+    }
+    
+    start() {
+        if (this.isReading || this.isPaused) { this.stop(); return; }
+        this.synth.cancel();
+        this.isReading = true;
+        this.isPaused = false;
+        this.currentSegmentIndex = 0;
+        this._speakSegment();
+    }
+    
+    pause() {
+        if (this.synth.speaking && !this.isPaused) {
+            this.synth.pause();
+            this.isPaused = true;
+            this._updateMainButton('resume');
+        } else if (!this.synth.speaking && !this.isPaused) {
+            this.isPaused = true; 
+            this._updateMainButton('resume');
+        }
+    }
+    
+    resume() {
+        if (this.isPaused) {
+            this.synth.resume();
+            this.isPaused = false;
+            this.isReading = true;
+            this._updateMainButton('stop');
+        }
+    }
+    
+    stop() {
+        if (this.synth.speaking || this.isPaused || this.isReading) {
+            this.synth.cancel();
+            this.isReading = false;
+            this.isPaused = false;
+            this.currentSegmentIndex = 0;
+            this._updateMainButton('start');
+        }
+    }
+}
+// ============================================
+// END: RESPONSE VOICE READER CLASS
+// ============================================
+
+// ============================================
+// NEW: State Persistence Loader
+// ============================================
+
+/**
+ * Loads userId, accessibilityProfile, and settings from Chrome storage.
+ * Applies the profile and settings immediately to the current page.
+ */
+async function loadProfileAndState() {
+    try {
+        const result = await chrome.storage.local.get(['userId', 'accessibilityProfile', 'settings']);
+        
+        // 1. Update Global State
+        userId = result.userId;
+        currentProfile = result.accessibilityProfile;
+
+        // 2. Apply Accessibility Profile/Styles to the page
+        if (currentProfile) {
+            applyProfileStyles(currentProfile); 
+        } else {
+            applyProfileStyles(null); 
+        }
+
+        // 3. Apply Quick Settings
+        if (result.settings) {
+            applySettingsToPage(result.settings);
+        }
+        
+        console.log(`[Content] State loaded. User: ${userId ? 'Logged In' : 'Anon'}, Profile: ${currentProfile || 'None'}.`);
+
+    } catch (error) {
+        console.error('[Content] Error loading state on page load:', error);
+    }
+}
+
+// === NEW: Storage Change Listener (Cross-Page Sync) ===
+// This listens for login/logout/profile changes from other parts (popup/sidepanel)
+// and updates the content script state/styles immediately.
+chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === 'local') {
+        if (changes.userId || changes.accessibilityProfile || changes.settings) {
+            console.log('[Content] Storage change detected. Reloading state to sync across pages...');
+            loadProfileAndState();
+        }
+    }
+});
+// ============================================
+
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('📨 Content script received:', message.type);
     
     if (message.type === 'PING') {
         sendResponse({ status: 'ready' });
+        return false;
+    }
+
+    if (message.type === 'REMOVE_OVERLAYS') {
+        removeExistingOverlays();
+        sendResponse({ status: 'overlays_removed' });
         return false;
     }
     
@@ -47,38 +311,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'APPLY_PROFILE') { // Enhanced profile activation
         const profile = message.profile;
         
-        // Remove all existing accessibility classes from both html and body
-        document.documentElement.classList.remove(
-            'accessibility-dyslexia',
-            'accessibility-adhd',
-            'accessibility-visual_impairment',
-            'accessibility-non_native',
-            'chromeai-adhd-enabled'
-        );
-        document.body.classList.remove(
-            'accessibility-dyslexia',
-            'accessibility-adhd',
-            'accessibility-visual_impairment',
-            'accessibility-non_native',
-            'chromeai-adhd-enabled'
-        );
-        
-        // Remove reading line if it exists
-        const existingLine = document.querySelector('.chromeai-reading-line');
-        if (existingLine) {
-            existingLine.remove();
-        }
-        
-        // Apply new profile if one is selected
-        if (profile) {
-            // Apply the class to the html element for better specificity
-            document.documentElement.classList.add(`accessibility-${profile}`);
-            document.documentElement.classList.add('chromeai-adhd-enabled');
-            
-            if (profile === 'adhd') {
-                applyADHDStyles();
-            }
-        }
+        // CRITICAL FIX: Update the internal state right here
+        currentProfile = profile; 
+
+        // Remove old classes and apply new styles/classes
+        applyProfileStyles(profile);
         
         sendResponse({ status: 'profile_applied' });
         return false;
@@ -111,8 +348,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'SIDE_PANEL_CALL_AI') { // New handler for side panel requests
         const { feature, data } = message;
         
-        currentProfile = data.accessibilityMode;
-        userId = data.userId;
+        // Use locally stored state which is continuously synced from storage
+        // currentProfile = data.accessibilityMode; // Removed: Use persistent state
+        // userId = data.userId; // Removed: Use persistent state
         
         let prompt = data.prompt || data.text;
         let options = {
@@ -138,6 +376,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 });
             })
             .catch(error => {
+                isProcessing = false;
                 console.error('❌ [Content AI] AI process failed:', error);
                 showNotification('Error: ' + error.message, 'error');
                 sendResponse({ success: false, error: error.message });
@@ -152,8 +391,10 @@ async function handleActivation(message) {
     const type = message.type.replace('ACTIVATE_', '');
     const data = message.data || {};
     
-    currentProfile = data.profile;
-    userId = data.userId;
+    // CRITICAL FIX: The global state variables (currentProfile, userId) are managed by the 
+    // loadProfileAndState and storage listener. We should rely on those.
+    // currentProfile = data.profile; // Removed
+    // userId = data.userId; // Removed
     
     console.log(`✨ Activating ${type} with profile:`, currentProfile);
     
@@ -376,7 +617,7 @@ async function callAI(prompt, options = {}) {
     }
 }
 // ============================================
-// OVERLAY CAPTURE UTILITY
+// OVERLAY CAPTURE UTILITY (unchanged)
 // ============================================
 
 /**
@@ -416,7 +657,7 @@ async function hideOverlayAndCapture(overlayId, callback) {
 
 
 // ============================================
-// OCR + TRANSLATE
+// OCR + TRANSLATE (Updated for language parity and TTS fix)
 // ============================================
 
 async function activateOCRTranslate() {
@@ -440,15 +681,7 @@ async function activateOCRTranslate() {
             <div style="margin-bottom: 16px;">
                 <label style="display: block; margin-bottom: 8px; font-weight: 600;">Translate to:</label>
                 <select id="ocr-target-language" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;">
-                    <option value="English">English</option>
-                    <option value="Spanish">Spanish (Español)</option>
-                    <option value="French">French (Français)</option>
-                    <option value="German">German (Deutsch)</option>
-                    <option value="Chinese">Chinese (中文)</option>
-                    <option value="Japanese">Japanese (日本語)</option>
-                    <option value="Korean">Korean (한국어)</option>
-                    <option value="Hindi">Hindi (हिन्दी)</option>
-                    <option value="Arabic">Arabic (العربية)</option>
+                    ${generateLanguageOptionsHtml('English')}
                 </select>
             </div>
             
@@ -551,8 +784,14 @@ async function activateOCRTranslate() {
             const result = await processOCRWithBackend(currentImageData, targetLanguage);
             console.log('✅ OCR completed');
             
+            const ttsManager = new ResponseVoiceReader('ocr-result'); // Use the result div ID
+
             resultDiv.innerHTML = `
                 <div style="padding: 16px; background: #e8f5e9; border-radius: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <strong>✅ OCR Completed:</strong>
+                        ${ttsManager.renderControl()}
+                    </div>
                     <div style="white-space: pre-wrap; line-height: 1.6;">
                         ${formatOCRResult(result)}
                     </div>
@@ -561,6 +800,7 @@ async function activateOCRTranslate() {
                     </button>
                 </div>
             `;
+            ttsManager.attachListeners(result, true); // Pass isOCR: true
             
             document.getElementById('copy-result-btn').onclick = () => {
                 navigator.clipboard.writeText(result);
@@ -584,7 +824,12 @@ async function activateOCRTranslate() {
     };
     
     overlay.onclick = (e) => {
-        if (e.target === overlay) overlay.remove();
+        if (e.target === e.currentTarget) {
+            // Check if the click was on the overlay background and not the TTS menu
+            if (!e.target.closest('.tts-container')) {
+                 overlay.remove();
+            }
+        }
     };
 }
 
@@ -650,7 +895,7 @@ function formatOCRResult(result) {
 }
 
 // ============================================
-// SCREENSHOT ANALYSIS
+// SCREENSHOT ANALYSIS (unchanged)
 // ============================================
 
 async function captureAndAnalyzeScreenshot() {
@@ -721,14 +966,20 @@ async function captureAndAnalyzeScreenshot() {
         try {
             const analysis = await analyzeImageWithBackend(capturedImage, query);
             
+            const ttsManager = new ResponseVoiceReader('screenshot-result');
+
             resultDiv.innerHTML = `
                 <div style="padding: 16px; background: #e8f5e9; border-radius: 8px;">
-                    <strong>🤖 AI Analysis:</strong><br><br>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <strong>🤖 AI Analysis:</strong>
+                        ${ttsManager.renderControl()}
+                    </div>
                     <div style="white-space: pre-wrap; line-height: 1.6;">
                         ${analysis}
                     </div>
                 </div>
             `;
+            ttsManager.attachListeners(analysis, false);
         } catch (error) {
             resultDiv.innerHTML = `
                 <div style="padding: 12px; background: #ffebee; border-radius: 8px; color: #c62828;">
@@ -739,7 +990,11 @@ async function captureAndAnalyzeScreenshot() {
     };
     
     overlay.onclick = (e) => {
-        if (e.target === overlay) overlay.remove();
+        if (e.target === e.currentTarget) {
+             if (!e.target.closest('.tts-container')) {
+                 overlay.remove();
+            }
+        }
     };
 }
 
@@ -769,7 +1024,7 @@ async function analyzeImageWithBackend(imageDataUrl, query) {
 }
 
 // ============================================
-// OTHER FEATURES (Hybrid-First Logic applied)
+// OTHER FEATURES (Hybrid-First Logic applied) (unchanged except for TTS fix)
 // ============================================
 
 async function showPromptInterface() {
@@ -807,13 +1062,29 @@ async function showPromptInterface() {
             const response = await callAI(input, { feature: 'PROMPT' });
             // Use formatAIResponse
             const formattedResponse = this.formatAIResponse(response);
-            responseDiv.innerHTML = `<div style="padding: 12px; background: #e8f5e9; border-radius: 8px; white-space: pre-wrap;">${formattedResponse}</div>`;
+            const ttsManager = new ResponseVoiceReader('prompt-response');
+
+            responseDiv.innerHTML = `
+                <div style="padding: 12px; background: #e8f5e9; border-radius: 8px; white-space: pre-wrap;">
+                    <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
+                        ${ttsManager.renderControl()}
+                    </div>
+                    ${formattedResponse}
+                </div>`;
+            ttsManager.attachListeners(response, false); // Attach listener
+
         } catch (error) {
             responseDiv.innerHTML = `<div style="padding: 12px; background: #ffebee; border-radius: 8px; color: #c62828;">${error.message}</div>`;
         }
     };
     
-    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.onclick = (e) => {
+        if (e.target === e.currentTarget) {
+             if (!e.target.closest('.tts-container')) {
+                 overlay.remove();
+            }
+        }
+    };
 }
 
 async function activateProofreaderMode() {
@@ -860,10 +1131,14 @@ async function activateProofreaderMode() {
         const correctedText = await callAI(prompt, { feature: 'PROOFREAD' });
 
         // Use formatAIResponse
+        const ttsManager = new ResponseVoiceReader('proofread-result');
         const formattedText = this.formatAIResponse(correctedText);
         
         document.getElementById('proofread-result').innerHTML = `
             <div style="padding: 16px; background: #e8f5e9; border-radius: 8px;">
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
+                    ${ttsManager.renderControl()}
+                </div>
                 <strong>✅ Corrected Text:</strong><br>
                 <div id="corrected-output" style="line-height: 1.6; margin-top: 8px;">${formattedText}</div>
                 <button id="copy-proofread-btn" style="margin-top: 12px; width: 100%; padding: 10px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
@@ -871,6 +1146,7 @@ async function activateProofreaderMode() {
                 </button>
             </div>
         `;
+        ttsManager.attachListeners(correctedText, false);
         document.getElementById('copy-proofread-btn').onclick = () => {
             navigator.clipboard.writeText(correctedText);
             showNotification('✓ Copied to clipboard', 'success');
@@ -947,10 +1223,14 @@ async function showSummarizerOptions() {
             const summary = await callAI(prompt, { feature: 'SUMMARIZE' });
 
             // Use formatAIResponse
+            const ttsManager = new ResponseVoiceReader('summarizer-result');
             const formattedSummary = this.formatAIResponse(summary);
 
             resultDiv.innerHTML = `
                 <div style="padding: 16px; background: #e8f5e9; border-radius: 8px;">
+                    <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
+                        ${ttsManager.renderControl()}
+                    </div>
                     <strong>🤖 Summary:</strong><br>
                     <div id="summary-output" style="line-height: 1.6; margin-top: 8px;">${formattedSummary}</div>
                     <button id="copy-summary-btn" style="margin-top: 12px; width: 100%; padding: 10px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
@@ -958,6 +1238,7 @@ async function showSummarizerOptions() {
                     </button>
                 </div>
             `;
+            ttsManager.attachListeners(summary, false);
             document.getElementById('copy-summary-btn').onclick = () => {
                 navigator.clipboard.writeText(summary);
                 showNotification('✓ Copied to clipboard', 'success');
@@ -971,7 +1252,13 @@ async function showSummarizerOptions() {
         }
     };
     
-    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.onclick = (e) => {
+        if (e.target === e.currentTarget) {
+             if (!e.target.closest('.tts-container')) {
+                 overlay.remove();
+            }
+        }
+    };
 }
 
 async function showTranslatorInterface() {
@@ -1000,12 +1287,7 @@ async function showTranslatorInterface() {
             
             <label style="display: block; margin-bottom: 8px; font-weight: 600;">Translate to:</label>
             <select id="translate-target-language" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; margin-bottom: 12px;">
-                <option value="Spanish">Spanish (Español)</option>
-                <option value="French">French (Français)</option>
-                <option value="German">German (Deutsch)</option>
-                <option value="Hindi">Hindi (हिन्दी)</option>
-                <option value="Japanese">Japanese (日本語)</option>
-                <option value="Simple English">Simple English (for learners)</option>
+                ${generateLanguageOptionsHtml('Spanish')}
             </select>
             
             <button id="translate-submit-btn" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px;">
@@ -1035,10 +1317,14 @@ async function showTranslatorInterface() {
             const translation = await callAI(prompt, { feature: 'TRANSLATE' });
 
             // Use formatAIResponse
+            const ttsManager = new ResponseVoiceReader('translation-result');
             const formattedTranslation = this.formatAIResponse(translation);
 
             resultDiv.innerHTML = `
                 <div style="padding: 16px; background: #e8f5e9; border-radius: 8px;">
+                    <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
+                        ${ttsManager.renderControl()}
+                    </div>
                     <strong>🌐 Translation (${targetLanguage}):</strong><br>
                     <div id="translation-output" style="line-height: 1.6; margin-top: 8px;">${formattedTranslation}</div>
                     <button id="copy-translate-btn" style="margin-top: 12px; width: 100%; padding: 10px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
@@ -1046,6 +1332,7 @@ async function showTranslatorInterface() {
                     </button>
                 </div>
             `;
+            ttsManager.attachListeners(translation, false);
             document.getElementById('copy-translate-btn').onclick = () => {
                 navigator.clipboard.writeText(translation);
                 showNotification('✓ Copied to clipboard', 'success');
@@ -1056,6 +1343,14 @@ async function showTranslatorInterface() {
                     <strong>❌ Error:</strong> ${error.message}
                 </div>
             `;
+        }
+    };
+    
+    overlay.onclick = (e) => {
+        if (e.target === e.currentTarget) {
+             if (!e.target.closest('.tts-container')) {
+                 overlay.remove();
+            }
         }
     };
 }
@@ -1098,11 +1393,15 @@ async function activateSimplify() {
         const simplifiedText = await callAI(selectedText, { isSimplify: true, feature: 'SIMPLIFY' });
         
         // Use formatAIResponse
+        const ttsManager = new ResponseVoiceReader('simplify-result');
         const formattedText = this.formatAIResponse(simplifiedText);
 
         // Display the successful result
         document.getElementById('simplify-result').innerHTML = `
             <div style="padding: 16px; background: #e8f5e9; border-radius: 8px;">
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
+                    ${ttsManager.renderControl()}
+                </div>
                 <strong>✨ Simplified Text:</strong><br>
                 <div id="simplified-output" style="line-height: 1.6; margin-top: 8px;">${formattedText}</div>
                 <button id="copy-simplify-btn" style="margin-top: 12px; width: 100%; padding: 10px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
@@ -1110,6 +1409,7 @@ async function activateSimplify() {
                 </button>
             </div>
         `;
+        ttsManager.attachListeners(simplifiedText, false);
         document.getElementById('copy-simplify-btn').onclick = () => {
             navigator.clipboard.writeText(simplifiedText);
             showNotification('✓ Copied to clipboard', 'success');
@@ -1122,6 +1422,14 @@ async function activateSimplify() {
             </div>
         `;
     }
+    
+    overlay.onclick = (e) => {
+        if (e.target === e.currentTarget) {
+             if (!e.target.closest('.tts-container')) {
+                 overlay.remove();
+            }
+        }
+    };
 }
 
 async function activateVoiceReader() {
@@ -1136,7 +1444,7 @@ async function activateVoiceReader() {
 }
 
 // ============================================
-// MAIN INTERFACE FUNCTION
+// MAIN INTERFACE FUNCTION (unchanged)
 // ============================================
 
 function showMainInterface() {
@@ -1259,11 +1567,17 @@ function showMainInterface() {
         activateVoiceReader();
     };
     
-    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.onclick = (e) => {
+        if (e.target === e.currentTarget) {
+             if (!e.target.closest('.tts-container')) {
+                 overlay.remove();
+            }
+        }
+    };
 }
 
 // ============================================
-// HELPER FUNCTIONS
+// HELPER FUNCTIONS (updated applyProfileStyles)
 // ============================================
 
 /**
@@ -1312,7 +1626,15 @@ function createOverlay(id, title) {
     `;
     
     overlay.appendChild(modal);
-    modal.querySelector('.close-btn').onclick = () => overlay.remove();
+    modal.querySelector('.close-btn').onclick = () => {
+         // Stop any running TTS before closing
+        const ttsContainer = modal.querySelector('.tts-container');
+        if (ttsContainer) {
+            const ttsManager = window.activeTTSManagers?.[id];
+            if (ttsManager) ttsManager.stop();
+        }
+        overlay.remove();
+    };
     
     return overlay;
 }
@@ -1474,26 +1796,42 @@ function displayInsightsOverlay(insights, sessionCount) {
         showMainInterface();
     };
     
-    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    overlay.onclick = (e) => {
+        if (e.target === e.currentTarget) {
+             if (!e.target.closest('.tts-container')) {
+                 overlay.remove();
+            }
+        }
+    };
 }
 
 // FIX: New function to apply/remove accessibility profiles on the content page
 function applyProfileStyles(profileName) {
-    const body = document.body;
     
-    // 1. Reset all profile classes and Focus Mode
-    body.classList.remove(
-        'accessibility-dyslexia', 
-        'accessibility-adhd', 
-        'accessibility-visual_impairment', 
+    // 1. Reset all existing accessibility classes from html (best practice)
+    document.documentElement.classList.remove(
+        'accessibility-dyslexia',
+        'accessibility-adhd',
+        'accessibility-visual_impairment',
         'accessibility-non_native',
-        'chromeai-focus-mode' // Ensure Focus Mode is off if a profile is selected
+        'chromeai-adhd-enabled'
     );
+    // 2. Remove the reading line if present
+    const existingLine = document.querySelector('.chromeai-reading-line');
+    if (existingLine) {
+        existingLine.remove();
+    }
 
     if (profileName) {
-        const className = `accessibility-${profileName}`;
-        body.classList.add(className);
-        console.log(`✅ Applied profile class: ${className}`);
+        // Apply new profile if one is selected
+        document.documentElement.classList.add(`accessibility-${profileName}`);
+        
+        if (profileName === 'adhd') {
+            // Ensure the ADDD styles are properly triggered for ADHD
+            applyADHDStyles(); 
+        }
+        
+        console.log(`✅ Applied profile class: accessibility-${profileName}`);
     } else {
         console.log('✅ Removed all accessibility profile classes.');
     }
@@ -1504,8 +1842,7 @@ function applyADHDStyles() {
     console.log('🔄 Applying ADHD styles...');
 
     // Test 1: Visual confirmation
-    document.body.style.border = '5px solid red';
-    console.log('✅ Test 1: Body border applied');
+    // document.body.style.border = '5px solid red'; // Removed visual test line
 
     // Test 2: Hide distracting elements
     hideDistractingElementsGradually();
@@ -1536,10 +1873,12 @@ function hideDistractingElementsGradually() {
     let hiddenCount = 0;
     safeSelectors.forEach(selector => {
         try {
-            const elements = document.querySelectorAll(selector);
+            // Use document.querySelectorAll on document.body for faster traversal and to avoid extension popups/overlays
+            const elements = document.body.querySelectorAll(selector);
             elements.forEach(el => {
-                if (el.offsetParent !== null) { // Only if visible
-                    el.style.display = 'none';
+                // Check if the element is not an overlay created by the extension itself
+                if (el.offsetParent !== null && !el.closest('.chromeai-overlay')) { 
+                    el.style.setProperty('display', 'none', 'important'); // Use setProperty for !important
                     hiddenCount++;
                 }
             });
@@ -1550,6 +1889,7 @@ function hideDistractingElementsGradually() {
 
     console.log(`✅ Hid ${hiddenCount} distracting elements`);
 }
+
 
 function focusMainContent() {
     const mainSelectors = [
@@ -1563,8 +1903,8 @@ function focusMainContent() {
             console.log(`✅ Found main content: ${selector}`);
 
             // Add a subtle highlight
-            element.style.boxShadow = '0 0 0 2px #4285f4';
-            element.style.transition = 'box-shadow 0.3s ease';
+            element.style.setProperty('box-shadow', '0 0 0 2px #4285f4', 'important');
+            element.style.setProperty('transition', 'box-shadow 0.3s ease', 'important');
 
             // Smooth scroll to content
             setTimeout(() => {
@@ -1595,6 +1935,9 @@ function addReadingLine() {
         line.style.top = `${e.clientY}px`;
     });
 }
+
+// CRITICAL FIX: Call the state loader immediately on script execution
+loadProfileAndState();
 
 console.log('✅ ChromeAI Plus content script ready');
 })();
