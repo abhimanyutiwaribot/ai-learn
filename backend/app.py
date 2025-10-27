@@ -2,12 +2,12 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
 import PyPDF2
 from dotenv import load_dotenv
 import google.generativeai as genai
 from pymongo import MongoClient
-from datetime import datetime, timezone, timedelta
-from flask_bcrypt import Bcrypt
+from datetime import datetime
 import json
 import base64
 from PIL import Image
@@ -20,7 +20,6 @@ load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
-bcrypt = Bcrypt(app)
 
 # simple request logger to debug 404s from the extension
 @app.before_request
@@ -81,110 +80,27 @@ def register_user():
             return jsonify({"success": False, "error": "MongoDB not configured"}), 400
             
         data = request.json
-        email = data.get('email', '').lower().strip()
-        password = data.get('password', '').strip()
+        email = data.get('email').lower()
+        password = data.get('password') 
         
-        # Basic validation
         if not email or not password:
             return jsonify({"success": False, "error": "Email and password are required"}), 400
-            
-        # Email format validation
-        if '@' not in email or '.' not in email:
-            return jsonify({"success": False, "error": "Please enter a valid email address"}), 400
-            
-        # Password strength validation
-        if len(password) < 8:
-            return jsonify({"success": False, "error": "Password must be at least 8 characters long"}), 400
 
         # Check if user already exists
         if db.users.find_one({'email': email}):
             return jsonify({"success": False, "error": "User already exists. Please log in instead."}), 409
             
-        # Hash password before storing
-        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-            
-        # Register user with hashed password
+        # FIX: Hash the password before saving it
+        hashed_password = generate_password_hash(password)
+        
         db.users.insert_one({
             'email': email,
-            'password': hashed_password,
-            'created_at': datetime.now(timezone.utc),
-            'last_login': datetime.now(timezone.utc),
-            'failed_login_attempts': 0,
-            'account_locked': False
+            'password': hashed_password, 
+            'created_at': datetime.utcnow()
         })
-        
-        # Record initial login time
-        db.users.update_one(
-            {'email': email},
-            {
-                '$set': {
-                    'created_at': datetime.now(timezone.utc),
-                    'last_login': datetime.now(timezone.utc),
-                    'failed_login_attempts': 0
-                }
-            }
-        )
         
         return jsonify({"success": True, "message": "User registered successfully", "userId": email}), 201
         
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-@app.route('/api/auth/reset-password-request', methods=['POST'])
-def request_password_reset():
-    # Deprecated: reset token flow removed. Keep endpoint removed to avoid accidental usage.
-    return jsonify({
-        "success": False,
-        "error": "Reset-token request endpoint has been disabled. Use /api/auth/reset-password to change password directly (email + new_password)."
-    }), 410
-
-@app.route('/api/auth/reset-password', methods=['POST'])
-def reset_password():
-    try:
-        if not MONGODB_ENABLED:
-            return jsonify({"success": False, "error": "MongoDB not configured"}), 400
-
-        data = request.json or {}
-        email = data.get('email', '').lower().strip()
-        new_password = data.get('new_password', '').strip()
-
-        if not email or not new_password:
-            return jsonify({"success": False, "error": "Email and new password are required"}), 400
-
-        # Password strength validation
-        if len(new_password) < 8:
-            return jsonify({"success": False, "error": "Password must be at least 8 characters long"}), 400
-
-        # Find user
-        user = db.users.find_one({'email': email})
-        if not user:
-            return jsonify({"success": False, "error": "User not found"}), 404
-
-        # Hash new password
-        hashed_password = bcrypt.generate_password_hash(new_password).decode('utf-8')
-
-        # Update password and clear any leftover reset fields; also unlock account and reset failed attempts
-        db.users.update_one(
-            {'email': email},
-            {
-                '$set': {
-                    'password': hashed_password,
-                    'account_locked': False,
-                    'failed_login_attempts': 0,
-                    'last_password_change': datetime.now(timezone.utc)
-                },
-                '$unset': {
-                    'reset_token': "",
-                    'reset_token_expiry': ""
-                }
-            }
-        )
-
-        return jsonify({
-            "success": True,
-            "message": "Password updated successfully. You can now log in with your new password."
-        }), 200
-
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -195,64 +111,20 @@ def login_user():
             return jsonify({"success": False, "error": "MongoDB not configured"}), 400
             
         data = request.json
-        email = data.get('email', '').lower().strip()
-        password = data.get('password', '').strip()
+        email = data.get('email').lower()
+        password = data.get('password')
         
         if not email or not password:
             return jsonify({"success": False, "error": "Email and password are required"}), 400
-            
-        # Find user by email
+
+        # FIX 1: Retrieve user by email only
         user = db.users.find_one({'email': email})
         
-        if not user:
-            # Use same error message as failed password to prevent email enumeration
+        # FIX 2: Verify password hash
+        if user and check_password_hash(user['password'], password):
+            return jsonify({"success": True, "message": "Login successful", "userId": email}), 200
+        else:
             return jsonify({"success": False, "error": "Invalid email or password"}), 401
-            
-        # Check if account is locked
-        if user.get('account_locked', False):
-            return jsonify({
-                "success": False, 
-                "error": "Account is locked due to too many failed attempts. Please reset your password."
-            }), 403
-            
-        # Verify password
-        if not bcrypt.check_password_hash(user['password'], password):
-            # Increment failed login attempts
-            failed_attempts = user.get('failed_login_attempts', 0) + 1
-            update_data = {
-                '$set': {
-                    'failed_login_attempts': failed_attempts,
-                    'account_locked': failed_attempts >= 5  # Lock account after 5 failed attempts
-                }
-            }
-            db.users.update_one({'email': email}, update_data)
-
-            if failed_attempts >= 5:
-                return jsonify({
-                    "success": False,
-                    "error": "Account locked due to too many failed attempts. Please reset your password."
-                }), 403
-
-            return jsonify({"success": False, "error": "Invalid email or password"}), 401
-            
-        # Reset failed attempts and update last login time on successful login
-        db.users.update_one(
-            {'email': email},
-            {
-        '$set': {
-            'last_login': datetime.now(timezone.utc),
-                    'failed_login_attempts': 0,
-                    'account_locked': False
-                }
-            }
-        )
-        
-        return jsonify({
-            "success": True, 
-            "message": "Login successful", 
-            "userId": email,
-            "lastLogin": user.get('last_login')
-        }), 200
             
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -515,7 +387,7 @@ def save_profile():
                 '$set': {
                     'user_id': user_id,
                     'profile': profile,
-                        'updated_at': datetime.now(timezone.utc)
+                    'updated_at': datetime.utcnow()
                 }
             },
             upsert=True
@@ -570,7 +442,7 @@ def log_session():
             'document_type': data.get('documentType'),
             'features_used': data.get('featuresUsed', []),
             'duration': data.get('duration', 0),
-           'timestamp': datetime.now(timezone.utc)
+            'timestamp': datetime.utcnow()
         }
         
         db.sessions.insert_one(session_data)
@@ -709,7 +581,7 @@ def log_usage(user_id, feature, metadata=None):
                 'user_id': user_id,
                 'feature': feature,
                 'metadata': metadata or {},
-              'timestamp': datetime.now(timezone.utc)
+                'timestamp': datetime.utcnow()
             }
             db.usage_logs.insert_one(log_data)
     except Exception as e:
