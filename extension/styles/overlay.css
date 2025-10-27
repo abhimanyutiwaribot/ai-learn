@@ -297,3 +297,63 @@
         width: 95vw;
     }
 }
+
+/* Add to existing styles/overlay.css */
+
+.tts-container {
+    position: relative;
+    display: inline-block; 
+    z-index: 10; 
+    margin-right: 10px; 
+}
+.tts-main-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    min-width: 32px;
+    justify-content: center;
+}
+.tts-main-btn .icon {
+    font-size: 18px !important;
+}
+.tts-main-btn:hover {
+    background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+}
+.tts-menu {
+    position: absolute;
+    top: 35px;
+    right: 0;
+    flex-direction: column;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 100;
+    overflow: hidden;
+    min-width: 150px;
+}
+.tts-menu .tts-control-btn {
+    background: none;
+    color: #333;
+    padding: 8px 12px;
+    border-radius: 0;
+    text-align: left;
+    font-size: 13px;
+    box-shadow: none;
+    width: 100%;
+    justify-content: flex-start;
+}
+.tts-menu .tts-control-btn:hover {
+    background: #f0f4ff;
+    color: #667eea;
+}
