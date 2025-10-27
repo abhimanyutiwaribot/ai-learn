@@ -5,7 +5,6 @@
     <title>ChromeAI Plus - Accessibility Assistant</title>
     <link rel="stylesheet" href="sidepanel.css">
     <link rel="stylesheet" href="styles/loading.css">
-    <link rel="stylesheet" href="styles/auth.css">
 </head>
 <body>
     <div class="sidepanel-container">
@@ -19,34 +18,25 @@
 
         <div class="auth-section" id="auth-section">
             <h3>Account Access</h3>
-            
-            <!-- Login/Register Form -->
             <div id="auth-form-container">
                 <input type="email" id="auth-email" placeholder="Email" required>
-                <div class="password-field">
-                    <input type="password" id="auth-password" placeholder="Password" required>
-                    <button type="button" class="password-toggle" id="auth-password-toggle" aria-label="Toggle password visibility">
-                        <span class="eye-icon">👁️</span>
-                    </button>
-                </div>
-                <div class="password-requirements" id="password-requirements" style="display: none;">
-                    <p>Password must:</p>
-                    <ul>
-                        <li>Be at least 8 characters long</li>
-                        <li>Include at least one number</li>
-                        <li>Include at least one special character</li>
-                    </ul>
-                </div>
+                <input type="password" id="auth-password" placeholder="Password" required>
                 
                 <button id="login-btn" class="primary-btn">Log In</button>
                 <button id="register-btn" class="secondary-btn">Register</button>
-                <!-- Forgot password UI removed -->
                 <p id="auth-message" class="auth-message"></p>
             </div>
-            <!-- Password reset UI removed per request -->
         </div>
 
         <div id="main-content" style="display: none;">
+            <div class="dark-mode-toggle-section">
+                <label class="dark-mode-toggle-label toggle-label">
+                    <input type="checkbox" id="dark-mode-toggle">
+                    <span class="toggle-slider"></span>
+                    Enable Dark Mode
+                </label>
+            </div>
+            
             <div class="mode-section">
                 <h3>Accessibility Mode</h3>
                 <label class="toggle-label">
@@ -80,7 +70,7 @@
             </div>
 
             <div class="features-section">
-                <h3>AI Features</h3>
+                <h3>Use Now</h3>
                 <div class="features-grid">
                     <button class="feature-btn" id="prompt-btn">
                         <span class="icon">💭</span>
@@ -309,17 +299,7 @@
                 <div class="translation-options">
                     <label class="option-label">Target Language:</label>
                     <select id="target-language">
-                        <option value="spanish">Spanish</option>
-                        <option value="french">French</option>
-                        <option value="german">German</option>
-                        <option value="italian">Italian</option>
-                        <option value="portuguese">Portuguese</option>
-                        <option value="chinese">Chinese</option>
-                        <option value="japanese">Japanese</option>
-                        <option value="korean">Korean</option>
-                        <option value="arabic">Arabic</option>
-                        <option value="hindi">Hindi</option>
-                    </select>
+                        </select>
                 </div>
                 <button class="action-btn" id="translate-submit">🌐 Translate</button>
                 <div class="response-container" id="translate-response" style="display: none;"></div>
@@ -453,16 +433,7 @@
                 <div class="translation-options">
                     <label class="option-label">Target Language:</label>
                     <select id="ocr-target-language">
-                        <option value="english">English</option>
-                        <option value="spanish">Spanish</option>
-                        <option value="german">German</option>
-                        <option value="french">French</option>
-                        <option value="chinese">Chinese</option>
-                        <option value="japanese">Japanese</option>
-                        <option value="korean">Korean</option>
-                        <option value="hindi">Hindi</option>
-                        <option value="arabic">Arabic</option>
-                    </select>
+                        </select>
                 </div>
                 <button class="action-btn" id="ocr-translate-submit" disabled>🖼️ Extract & Translate</button>
                 <div class="response-container" id="ocr-translate-response" style="display: none;">
@@ -792,3 +763,4 @@
     <script src="sidepanel.js"></script>
     <script src="tutorial.js"></script>
 </body>
+</html>
