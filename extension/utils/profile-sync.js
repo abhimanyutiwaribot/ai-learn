@@ -1,3 +1,5 @@
+const BACKEND_URL = "YOUR_BACKEND_URL"
+
 window.profileSync = {
     async saveProfile(userId, profile) {
         try {
@@ -6,7 +8,7 @@ window.profileSync = {
                 lastUpdated: Date.now()
             });
             
-            await fetch('http://localhost:5000/api/accessibility/profile/save', {
+            await fetch(`${BACKEND_URL}/api/accessibility/profile/save`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId, profile })
@@ -25,7 +27,7 @@ window.profileSync = {
                 return { success: true, profile: local.accessibilityProfile };
             }
             
-            const response = await fetch(`http://localhost:5000/api/accessibility/profile/get/${userId}`);
+            const response = await fetch(`${BACKEND_URL}/api/accessibility/profile/get/${userId}`);
             const data = await response.json();
             
             if (data.success) {

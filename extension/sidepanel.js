@@ -1,4 +1,4 @@
-const BACKEND_URL = 'http://localhost:5000';
+const BACKEND_URL = 'YOUR_BACKEND_URL';
 let currentProfile = null;
 let accessibilityMode = false;
 let userId = null; 
@@ -228,7 +228,7 @@ class ChromeAISidePanel {
     }
 
     async loadUserSettings() {
-        const result = await chrome.storage.local.get(['userId', 'accessibilityProfile', 'settings']);
+        const result = await chrome.storage.local.get(['userId', 'accessibilityProfile', 'settings','showReadingLine']);
         
         if (result.userId && result.userId !== 'anonymous') {
             userId = result.userId;
@@ -255,6 +255,7 @@ class ChromeAISidePanel {
             accessibilityMode = false;
             document.getElementById('accessibility-mode-toggle').checked = false;
         }
+        
 
         // Hide profile selection initially
         document.getElementById('profile-section').style.display = accessibilityMode ? 'block' : 'none';
@@ -263,7 +264,13 @@ class ChromeAISidePanel {
         if (result.settings) {
             this.applySettings(result.settings);
         }
-    }
+        // Load Reading Line preference (add this at the end of the method)
+        const readingLineToggle = document.getElementById('reading-line-toggle');
+        if (readingLineToggle) {
+               readingLineToggle.checked = result.showReadingLine !== false; // Default to true
+        }
+        this.updateReadingLineToggle(); // Final check to set initial disabled state
+}
 
     showAuthSection() {
         document.getElementById('auth-section').style.display = 'block';
@@ -284,6 +291,13 @@ class ChromeAISidePanel {
         document.getElementById('login-btn').addEventListener('click', () => this.handleAuth('login'));
         document.getElementById('register-btn').addEventListener('click', () => this.handleAuth('register'));
         document.getElementById('logout-btn').addEventListener('click', () => this.logoutUser());
+                
+        // Simplify Web feature listeners
+        document.getElementById('simplify-web-btn').addEventListener('click', () => this.showFeatureInterface('simplify-web'));
+        document.getElementById('simplify-web-back-btn').addEventListener('click', () => this.hideFeatureInterface('simplify-web'));
+        document.getElementById('simplify-web-submit').addEventListener('click', () => this.handleSimplifyWebSubmit());
+        document.getElementById('restore-original-btn').addEventListener('click', () => this.handleRestoreOriginal());
+
         
         // --- Dark Mode Listener ---
         document.getElementById('dark-mode-toggle').addEventListener('change', (e) => this.handleDarkModeToggle(e.target.checked));
@@ -291,15 +305,19 @@ class ChromeAISidePanel {
         // --- Accessibility Listeners ---
         document.getElementById('accessibility-mode-toggle').addEventListener('change', (e) => {
             accessibilityMode = e.target.checked;
+            this.updateReadingLineToggle(); // Add after accessibilityMode = e.target.checked
+
             document.getElementById('profile-section').style.display = accessibilityMode ? 'block' : 'none';
             
             if (!accessibilityMode) {
                 currentProfile = null;
                 this.updateCurrentProfile();
+                this.updateReadingLineToggle(); 
                 this.applyAccessibilityStylesToPopup(null);
                 this.saveProfileToBackend(null); // Persist state change
             } else if (currentProfile) {
                 this.updateCurrentProfile();
+                this.updateReadingLineToggle(); 
                 this.applyAccessibilityStylesToPopup(currentProfile);
                 this.saveProfileToBackend(currentProfile); // Persist state change
             } else {
@@ -307,6 +325,49 @@ class ChromeAISidePanel {
                  chrome.storage.local.set({ accessibilityProfile: null });
             }
         });
+
+        // --- Reading Line Toggle Listener (FIXED) ---
+const readingLineToggle = document.getElementById('reading-line-toggle');
+if (readingLineToggle) {
+    readingLineToggle.addEventListener('change', async (e) => {
+        // CRITICAL FIX: Check if the toggle is disabled to prevent accidental state change
+        if (e.target.disabled) {
+            e.preventDefault();
+            e.target.checked = !e.target.checked; // Revert the visual change
+            this.showStatus('Reading Line can only be controlled when ADHD profile is active.', 'warning');
+            return;
+        }
+
+        const enabled = e.target.checked;
+        
+        // Save preference to storage
+        await chrome.storage.local.set({ showReadingLine: enabled });
+        
+        // Send message to content script to toggle
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tab?.id) {
+            try {
+                await chrome.tabs.sendMessage(tab.id, {
+                    action: 'TOGGLE_READING_LINE',
+                    enabled: enabled
+                });
+                this.showStatus(`Reading line ${enabled ? 'enabled' : 'disabled'}`, 'success');
+            } catch (error) {
+                console.warn('Could not toggle reading line:', error.message);
+                // Fallback: broadcast to all tabs
+                const tabs = await chrome.tabs.query({});
+                tabs.forEach(tab => {
+                    chrome.tabs.sendMessage(tab.id, {
+                        action: 'TOGGLE_READING_LINE',
+                        enabled: enabled
+                    }).catch(() => {});
+                });
+            }
+        }
+    });
+}
+
+
         
         // --- Profile Listeners ---
         document.querySelectorAll('.profile-btn').forEach(btn => {
@@ -322,6 +383,7 @@ class ChromeAISidePanel {
                 btn.classList.add('active');
                 
                 this.updateCurrentProfile();
+                this.updateReadingLineToggle(); // Update reading line availability
                 await chrome.storage.local.set({ accessibilityProfile: profile });
                 await this.saveProfileToBackend(profile); 
                 
@@ -338,6 +400,7 @@ class ChromeAISidePanel {
         document.getElementById('screenshot-btn').addEventListener('click', () => this.showFeatureInterface('screenshot'));
         document.getElementById('ocr-translate-btn').addEventListener('click', () => this.showFeatureInterface('ocr-translate'));
         document.getElementById('simplify-btn').addEventListener('click', () => this.showFeatureInterface('simplify'));
+        document.getElementById('simplify-web-btn').addEventListener('click', () => this.showFeatureInterface('simplify-web'));
         document.getElementById('voice-reader-btn').addEventListener('click', () => this.showFeatureInterface('voice-reader'));
         document.getElementById('insights-btn').addEventListener('click', () => this.showFeatureInterface('insights'));
         
@@ -347,6 +410,7 @@ class ChromeAISidePanel {
         document.getElementById('summarize-back-btn').addEventListener('click', () => this.hideFeatureInterface('summarize'));
         document.getElementById('translate-back-btn').addEventListener('click', () => this.hideFeatureInterface('translate'));
         document.getElementById('simplify-back-btn').addEventListener('click', () => this.hideFeatureInterface('simplify'));
+        document.getElementById('simplify-web-back-btn').addEventListener('click', () => this.hideFeatureInterface('simplify-web'));
         document.getElementById('voice-reader-back-btn').addEventListener('click', () => this.hideFeatureInterface('voice-reader'));
         document.getElementById('ocr-translate-back-btn').addEventListener('click', () => this.hideFeatureInterface('ocr-translate'));
         document.getElementById('screenshot-back-btn').addEventListener('click', () => this.hideFeatureInterface('screenshot'));
@@ -494,6 +558,7 @@ class ChromeAISidePanel {
 
         return html;
     }
+    
 
     // === SCREENSHOT FUNCTIONALITY (UNCHANGED) ===
     // ... (omitted for brevity, assume unchanged logic)
@@ -827,6 +892,45 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         
         this.applyProfileToContent(currentProfile); 
     }
+
+    // CRITICAL FIX: Implement logic to disable/enable toggle based on ADHD state
+    updateReadingLineToggle() {
+        const readingLineToggle = document.getElementById('reading-line-toggle');
+        
+        if (!readingLineToggle) return;
+        
+        const isADHDActive = accessibilityMode && currentProfile === 'adhd';
+        
+        // 1. Lock/Unlock the toggle
+        readingLineToggle.disabled = !isADHDActive;
+        
+        // 2. If ADHD is NOT active, force state off and tell content script to remove the line.
+        if (!isADHDActive) {
+            // Only uncheck if it's currently checked, to send message only when necessary
+            if (readingLineToggle.checked) {
+                readingLineToggle.checked = false;
+                
+                // Send message to content script to remove the line
+                chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+                    if (tabs[0]) {
+                        chrome.tabs.sendMessage(tabs[0].id, {
+                            action: 'TOGGLE_READING_LINE',
+                            enabled: false
+                        }).catch(() => {});
+                    }
+                });
+            }
+            this.showStatus('Reading Line is disabled when not in ADHD Mode.', 'info');
+        } else {
+            // If ADHD is active, show status based on current toggle state
+            if (readingLineToggle.checked) {
+                this.showStatus('Reading Line is currently ENABLED.', 'success');
+            } else {
+                this.showStatus('ADHD profile active. Reading Line is available.', 'info');
+            }
+        }
+    }
+
 
     async applyProfileToContent(profileName) {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -1327,7 +1431,6 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         `;
         ttsManager.attachListeners(response, isOCR);
         
-        // **SCROLL TO RESPONSE**
         this._scrollToResponse('summarize-response');
     }
 
@@ -1481,6 +1584,107 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         // **SCROLL TO RESPONSE**
         this._scrollToResponse('simplify-response');
     }
+
+        // ============================================
+    // SIMPLIFY WEB HANDLERS
+    // ============================================
+    
+    async handleSimplifyWebSubmit() {
+        const simplifyLevel = document.getElementById('simplify-web-level').value;
+        const statusEl = document.getElementById('simplify-web-status');
+        const submitBtn = document.getElementById('simplify-web-submit');
+        const restoreBtn = document.getElementById('restore-original-btn');
+        
+        submitBtn.disabled = true;
+        statusEl.style.display = 'block';
+        statusEl.style.background = '#e3f2fd';
+        statusEl.style.color = '#1976d2';
+        statusEl.textContent = 'Extracting webpage content...';
+        
+        this.showStatus('Extracting webpage content...', 'info');
+        
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            
+            const contentResponse = await this.sendMessageToContentScript(tab.id, {
+                type: 'GET_PAGE_TEXT'
+            });
+            
+            const pageContent = contentResponse?.text?.trim();
+            
+            if (!pageContent || pageContent.length < 100) {
+                statusEl.style.background = '#ffebee';
+                statusEl.style.color = '#c62828';
+                statusEl.textContent = 'Not enough content found on this page.';
+                submitBtn.disabled = false;
+                return;
+            }
+            
+            const wordCount = Math.round(pageContent.length / 5);
+            statusEl.textContent = `Simplifying ${wordCount} words with AI...`;
+            this.showStatus('Simplifying content with AI...', 'info');
+            
+            const response = await this.callContentScriptAI('SIMPLIFY', {
+                text: pageContent,
+                level: simplifyLevel,
+                accessibilityMode: currentProfile,
+                userId: userId
+            });
+
+            console.log('AI Response:', response);
+            console.log('Response keys:', Object.keys(response));
+
+            if (response.success) {
+             // Check both possible response formats
+            const simplifiedText = response.response || response.simplified || response;
+    
+              console.log('Simplified content length:', simplifiedText?.length);
+    
+                 await chrome.tabs.sendMessage(tab.id, {
+                 type: 'REPLACE_PAGE_CONTENT',
+                 simplifiedContent: simplifiedText,
+                 level: simplifyLevel
+             });
+            
+           
+                
+                statusEl.style.background = '#e8f5e9';
+                statusEl.style.color = '#2e7d32';
+                statusEl.textContent = '✓ Page simplified successfully!';
+                restoreBtn.style.display = 'block';
+                this.showStatus('Page simplified successfully!', 'success');
+                this.logFeatureUsage('SIMPLIFY_WEB');
+            } else {
+                throw new Error(response.error || 'AI simplification failed');
+            }
+            
+        } catch (error) {
+            statusEl.style.background = '#ffebee';
+            statusEl.style.color = '#c62828';
+            statusEl.textContent = `Error: ${error.message}`;
+            this.showStatus(`Error: ${error.message}`, 'error');
+        } finally {
+            submitBtn.disabled = false;
+        }
+    }
+    
+    async handleRestoreOriginal() {
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            await chrome.tabs.sendMessage(tab.id, { type: 'RESTORE_ORIGINAL_CONTENT' });
+            
+            document.getElementById('restore-original-btn').style.display = 'none';
+            const statusEl = document.getElementById('simplify-web-status');
+            statusEl.style.background = '#e8f5e9';
+            statusEl.style.color = '#2e7d32';
+            statusEl.style.display = 'block';
+            statusEl.textContent = '✓ Original page restored!';
+            this.showStatus('Original page restored!', 'success');
+        } catch (error) {
+            this.showStatus(`Error: ${error.message}`, 'error');
+        }
+    }
+
 
     async handleVoiceReadSubmit() {
         const previewElement = document.getElementById('voice-reader-preview');
@@ -1911,7 +2115,6 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         
         ttsManager.attachListeners(response, isOCR);
         
-        // **SCROLL TO RESPONSE**
         this._scrollToResponse('ocr-translate-response');
     }
 
@@ -2290,6 +2493,55 @@ document.addEventListener('DOMContentLoaded', () => {
   let selectedAction = 'summarize';
   let currentRequest = null; // To track the current fetch request
 
+  // --- Utility Functions (Defined locally to keep scope clean and consistent with original structure) ---
+
+  function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  function handleFileSelection(file) {
+    // Check if file is PDF or Word document
+    const isValidFile = file.type === 'application/pdf' || 
+                      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                      file.name.toLowerCase().endsWith('.pdf') ||
+                      file.name.toLowerCase().endsWith('.docx');
+    
+    if (!isValidFile) {
+      sidePanelInstance.showStatus('Please select a valid PDF or Word document.', 'error');
+      return;
+    }
+
+    // Show file info
+    fileName.textContent = file.name;
+    fileSize.textContent = formatFileSize(file.size);
+    
+    fileUploadArea.style.display = 'none';
+    uploadedFileInfo.style.display = 'flex';
+    
+    const fileType = file.name.toLowerCase().endsWith('.pdf') ? 'PDF' : 'Word document';
+    // NOTE: Using sidePanelInstance.showStatus
+    sidePanelInstance.showStatus(`${fileType} file selected. Click "Upload Document" to proceed.`, 'info');
+  }
+
+  function resetFileUpload() {
+    pdfFileInput.value = '';
+    uploadedFilename = null;
+    
+    fileUploadArea.style.display = 'block';
+    uploadedFileInfo.style.display = 'none';
+    
+    pdfProcessBtn.disabled = true;
+    pdfResult.style.display = 'none';
+    pdfStatus.textContent = '';
+    pdfStatus.className = 'status-message';
+  }
+
+  // --- End Utility Functions ---
+
   // File upload area click handler
   if (fileUploadArea) {
     fileUploadArea.addEventListener('click', () => {
@@ -2315,7 +2567,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pdfFileInput.files = files;
         handleFileSelection(files[0]);
       } else {
-        showStatus('Please select a valid PDF or Word document.', 'error');
+        sidePanelInstance.showStatus('Please select a valid PDF or Word document.', 'error');
       }
     });
   }
@@ -2351,58 +2603,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (resultContent) {
         // Use a function that gets innerText for content copy
         navigator.clipboard.writeText(resultContent.textContent); 
-        showStatus('Results copied to clipboard!', 'success');
+        sidePanelInstance.showStatus('Results copied to clipboard!', 'success');
       }
     });
-  }
-
-  function handleFileSelection(file) {
-    // Check if file is PDF or Word document
-    const isValidFile = file.type === 'application/pdf' || 
-                      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-                      file.name.toLowerCase().endsWith('.pdf') ||
-                      file.name.toLowerCase().endsWith('.docx');
-    
-    if (!isValidFile) {
-      showStatus('Please select a valid PDF or Word document.', 'error');
-      return;
-    }
-
-    // Show file info
-    fileName.textContent = file.name;
-    fileSize.textContent = formatFileSize(file.size);
-    
-    fileUploadArea.style.display = 'none';
-    uploadedFileInfo.style.display = 'flex';
-    
-    const fileType = file.name.toLowerCase().endsWith('.pdf') ? 'PDF' : 'Word document';
-    showStatus(`${fileType} file selected. Click "Upload Document" to proceed.`, 'info');
-  }
-
-  function resetFileUpload() {
-    pdfFileInput.value = '';
-    uploadedFilename = null;
-    
-    fileUploadArea.style.display = 'block';
-    uploadedFileInfo.style.display = 'none';
-    
-    pdfProcessBtn.disabled = true;
-    pdfResult.style.display = 'none';
-    pdfStatus.textContent = '';
-    pdfStatus.className = 'status-message';
-  }
-
-  function formatFileSize(bytes) {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  }
-
-  function showStatus(message, type) {
-    pdfStatus.textContent = message;
-    pdfStatus.className = `status-message ${type}`;
   }
 
   // Upload button handler
@@ -2410,18 +2613,18 @@ document.addEventListener('DOMContentLoaded', () => {
     pdfUploadBtn.addEventListener('click', async () => {
       const files = pdfFileInput.files;
       if (!files || files.length === 0) {
-        showStatus('Please select a document first.', 'error');
+        sidePanelInstance.showStatus('Please select a document first.', 'error');
         return;
       }
       
       const file = files[0];
       const fileType = file.name.toLowerCase().endsWith('.pdf') ? 'PDF' : 'Word document';
-      showStatus(`Uploading ${fileType}...`, 'info');
+      sidePanelInstance.showStatus(`Uploading ${fileType}...`, 'info');
       
       try {
         const form = new FormData();
         form.append('file', file);
-        const resp = await fetch('http://localhost:5000/upload', {
+        const resp = await fetch(`${BACKEND_URL}/upload`, {
           method: 'POST',
           body: form
         });
@@ -2441,18 +2644,18 @@ document.addEventListener('DOMContentLoaded', () => {
             uploadedFilename = body.raw.trim();
           }
           if (uploadedFilename) {
-            showStatus('Document uploaded successfully! Ready to process.', 'success');
+            sidePanelInstance.showStatus('Document uploaded successfully! Ready to process.', 'success');
             pdfProcessBtn.disabled = false;
             pdfCancelBtn.disabled = false;
           } else {
-            showStatus('Uploaded but no filename returned.', 'error');
+            sidePanelInstance.showStatus('Uploaded but no filename returned.', 'error');
           }
         } else {
           const errMsg = body.error || body.raw || resp.statusText || 'Upload failed';
-          showStatus('Upload failed: ' + errMsg, 'error');
+          sidePanelInstance.showStatus('Upload failed: ' + errMsg, 'error');
         }
       } catch (err) {
-        showStatus('Upload error: ' + (err && err.message ? err.message : err), 'error');
+        sidePanelInstance.showStatus('Upload error: ' + (err && err.message ? err.message : err), 'error');
       }
     });
   }
@@ -2461,7 +2664,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (pdfProcessBtn) {
     pdfProcessBtn.addEventListener('click', async () => {
       if (!uploadedFilename) {
-        showStatus('No uploaded document found.', 'error');
+        sidePanelInstance.showStatus('No uploaded document found.', 'error');
         return;
       }
       
@@ -2471,7 +2674,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'both': 'Processing (Summarize + Proofread)'
       }[selectedAction];
       
-      showStatus(`${actionText} your document with AI...`, 'info');
+      sidePanelInstance.showStatus(`${actionText} your document with AI...`, 'info');
       pdfResult.style.display = 'none';
       
       try {
@@ -2479,7 +2682,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const abortController = new AbortController();
         currentRequest = abortController;
         
-        const resp = await fetch('http://localhost:5000/process-document', {
+        const resp = await fetch(`${BACKEND_URL}/process-document`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
@@ -2488,9 +2691,26 @@ document.addEventListener('DOMContentLoaded', () => {
           }),
           signal: abortController.signal
         });
-        const j = await resp.json();
         
+        // --- START FIX: Robust error handling for non-JSON response ---
+        let j;
         if (resp.ok) {
+          j = await resp.json();
+        } else {
+          // If status is not ok (e.g., 500), try to read as JSON for error object, else read as text.
+          try {
+            j = await resp.json();
+          } catch (e) {
+            const errorText = await resp.text();
+            // Throw a custom error that includes the status and a snippet of the HTML content
+            throw new Error(`Server processing failed (Status ${resp.status}). Detail: ${errorText.substring(0, 100)}...`);
+          }
+          // If we got here, j is a JSON error object: throw its message.
+          throw new Error(j.error || resp.statusText);
+        }
+        // --- END FIX ---
+        
+        if (resp.ok) { 
           let resultText = '';
           
           if (j.summary) {
@@ -2506,17 +2726,23 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           
           // Use the global instance for formatting
-          resultContent.innerHTML = new ChromeAISidePanel().formatAIResponse(resultText); 
+          if (sidePanelInstance) {
+             resultContent.innerHTML = sidePanelInstance.formatAIResponse(resultText); 
+          } else {
+             // Fallback to basic HTML conversion if the class isn't ready.
+             resultContent.innerHTML = resultText.replace(/\n/g, '<br>');
+          }
+
           pdfResult.style.display = 'block';
-          showStatus('AI processing completed successfully!', 'success');
+          sidePanelInstance.showStatus('AI processing completed successfully!', 'success');
         } else {
-          showStatus('Processing failed: ' + (j.error || resp.statusText), 'error');
+          sidePanelInstance.showStatus('Processing failed: ' + (j.error || resp.statusText), 'error');
         }
       } catch (err) {
         if (err.name === 'AbortError') {
-          showStatus('Processing cancelled.', 'info');
+          sidePanelInstance.showStatus('Processing cancelled.', 'info');
         } else {
-          showStatus('Processing error: ' + (err && err.message ? err.message : err), 'error');
+          sidePanelInstance.showStatus('Processing error: ' + (err && err.message ? err.message : err), 'error');
         }
       } finally {
         currentRequest = null;
@@ -2530,13 +2756,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (currentRequest) {
         currentRequest.abort();
         currentRequest = null;
-        showStatus('Processing cancelled.', 'info');
+        sidePanelInstance.showStatus('Processing cancelled.', 'info');
         pdfProcessBtn.disabled = false;
         pdfCancelBtn.disabled = true;
       } else {
         // Reset everything if no active request
         resetFileUpload();
-        showStatus('Cancelled. Upload a new document to start again.', 'info');
+        sidePanelInstance.showStatus('Cancelled. Upload a new document to start again.', 'info');
       }
     });
   }

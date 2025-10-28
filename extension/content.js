@@ -1,3 +1,5 @@
+// chromeai-plus/extension/content.js
+
 (function() {
 
 // ChromeAI Plus Content Script - Complete Version
@@ -6,9 +8,14 @@ console.log('🚀 ChromeAI Plus content script loaded');
 let currentProfile = null;
 let userId = null;
 let isProcessing = false;
+let showReadingLine = true; // Toggle for reading line feature
+
+// CRITICAL FIX: Declare simplifiedVoiceUtterance once at the top level of the IIFE
+// It needs to be scoped here so restoreOriginalContent can access and clear it.
+let simplifiedVoiceUtterance = null; 
 
 // The backend URL is assumed to be defined here or globally available
-const BACKEND_URL = 'http://localhost:5000'; 
+const BACKEND_URL = 'YOUR_BACKEND_URL'; 
 
 // Define the standard language list for parity
 const standardLanguageOptions = [
@@ -108,6 +115,7 @@ class ResponseVoiceReader {
                 segments.push({ text: translatedText, lang: lang, label: 'Translation' });
             }
         } else {
+            // Standard handling: Single segment
             const text = responseText.trim();
             const lang = this._detectLanguage(text) || 'en';
             segments.push({ text: text, lang: lang, label: 'Response' });
@@ -130,7 +138,6 @@ class ResponseVoiceReader {
     }
 
     _getVoice(langCode) {
-        // Map language code to BCP-47 for voice matching
         const langMap = {
             'ko': 'ko', 'ja': 'ja', 'zh': 'zh', 'ar': 'ar', 'hi': 'hi', 
             'es': 'es', 'fr': 'fr', 'de': 'de', 'en': 'en'
@@ -153,8 +160,6 @@ class ResponseVoiceReader {
         }
     }
     
-    // _openMenu and _closeMenu removed
-
     _speakSegment() {
         if (this.currentSegmentIndex >= this.ttsData.length) {
             this.stop();
@@ -233,12 +238,13 @@ class ResponseVoiceReader {
  */
 async function loadProfileAndState() {
     try {
-        const result = await chrome.storage.local.get(['userId', 'accessibilityProfile', 'settings']);
+        const result = await chrome.storage.local.get(['userId', 'accessibilityProfile', 'settings', 'showReadingLine']);
         
         // 1. Update Global State
         userId = result.userId;
         currentProfile = result.accessibilityProfile;
-
+        showReadingLine = result.showReadingLine !== false; // Default to true
+        
         // 2. Apply Accessibility Profile/Styles to the page
         if (currentProfile) {
             applyProfileStyles(currentProfile); 
@@ -251,7 +257,7 @@ async function loadProfileAndState() {
             applySettingsToPage(result.settings);
         }
         
-        console.log(`[Content] State loaded. User: ${userId ? 'Logged In' : 'Anon'}, Profile: ${currentProfile || 'None'}.`);
+        console.log(`[Content] State loaded. User: ${userId ? 'Logged In' : 'Anon'}, Profile: ${currentProfile || 'None'}. Reading Line Pref: ${showReadingLine}.`);
 
     } catch (error) {
         console.error('[Content] Error loading state on page load:', error);
@@ -259,11 +265,9 @@ async function loadProfileAndState() {
 }
 
 // === NEW: Storage Change Listener (Cross-Page Sync) ===
-// This listens for login/logout/profile changes from other parts (popup/sidepanel)
-// and updates the content script state/styles immediately.
 chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'local') {
-        if (changes.userId || changes.accessibilityProfile || changes.settings) {
+        if (changes.userId || changes.accessibilityProfile || changes.settings || changes.showReadingLine) {
             console.log('[Content] Storage change detected. Reloading state to sync across pages...');
             loadProfileAndState();
         }
@@ -272,8 +276,332 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 // ============================================
 
 
+
+
+// Format AI response with markdown-like styling
+// Helper function to escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// ============================================
+// SIMPLIFY WEB - PAGE CONTENT REPLACEMENT
+// ============================================
+
+let originalPageContent = null;
+let originalMainContainer = null;
+
+function restoreOriginalContent() {
+    console.log('↩️ Restoring original page...');
+    const simplifiedWrapper = document.getElementById('simplified-web-wrapper');
+    
+    // Stop any running TTS before restoration
+    if (simplifiedVoiceUtterance) {
+        window.speechSynthesis.cancel();
+        simplifiedVoiceUtterance = null;
+    }
+    
+    // 1. Restore the title
+    if (originalPageContent && originalPageContent.title) {
+        document.title = originalPageContent.title;
+    }
+
+    // 2. Remove the simplified content wrapper
+    if (simplifiedWrapper) {
+        simplifiedWrapper.remove();
+    }
+    
+    // 3. Restore the original HTML content
+    if (originalMainContainer) {
+        originalMainContainer.innerHTML = originalPageContent.html;
+        // Restore the entire original body content if we replaced it entirely
+    } else if (originalPageContent && originalPageContent.html) {
+        document.documentElement.innerHTML = originalPageContent.html;
+    }
+    
+    originalPageContent = null;
+    originalMainContainer = null;
+    
+    // Send a success notification to the sidepanel/user
+    chrome.runtime.sendMessage({ type: 'SIMPLIFY_STATUS', status: 'restored' });
+    console.log('✅ Original page restored');
+}
+
+
+function replacePageWithSimplified(simplifiedText, level) {
+    console.log('🌐 Replacing page with simplified content...');
+    
+    // Stop any previous TTS if the user simplifies again
+    if (simplifiedVoiceUtterance) {
+        window.speechSynthesis.cancel();
+        simplifiedVoiceUtterance = null;
+    }
+    
+    // 1. Find the best container for the original content
+    const mainSelectors = [
+        'main', 'article', '[role="main"]',
+        '.content', '.main-content', '.post',
+        '[itemprop*="articleBody"]', '[class*="entry-content"]', '[class*="story-body"]'
+    ];
+    
+    let targetContainer = null;
+    for (const selector of mainSelectors) {
+        targetContainer = document.querySelector(selector);
+        if (targetContainer && targetContainer.offsetParent !== null) {
+            break;
+        }
+    }
+
+    // If a good content container isn't found, use body.
+    if (!targetContainer || targetContainer.tagName === 'BODY') {
+        targetContainer = document.body;
+    }
+    
+    // 2. Save original state if restoration is possible
+    if (!originalPageContent) {
+        originalPageContent = {
+            // Save the innerHTML of the target to restore it correctly
+            html: targetContainer.innerHTML,
+            title: document.title
+        };
+        originalMainContainer = targetContainer;
+    } else {
+        // If simplification is called again without restoration, remove the previous simplified wrapper
+        const existingWrapper = document.getElementById('simplified-web-wrapper');
+        if (existingWrapper) existingWrapper.remove();
+    }
+    
+    // 3. Prepare the simplified content wrapper (minimal UI)
+    const formattedContent = formatAIResponse(simplifiedText);
+    
+    const simplifiedWrapper = document.createElement('div');
+    simplifiedWrapper.id = 'simplified-web-wrapper';
+    simplifiedWrapper.style.cssText = 'position: relative; padding: 20px; background: white; border: 1px solid #e0e0e0; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);';
+    
+    // Add Header (Title/Level)
+    const header = document.createElement('div');
+    header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #f0f0f0;';
+    
+    const headerInfo = document.createElement('div');
+    headerInfo.style.cssText = 'flex: 1;';
+    headerInfo.innerHTML = `
+        <h2 style="margin: 0; font-size: 1.5em; color: #4f46e5;">✨ Simplified Content</h2>
+        <div style="font-size: 0.9em; color: #6b7280;">Level: ${level}</div>
+    `;
+    
+    // 4. Create Controls (Voice + Restore)
+    const controls = document.createElement('div');
+    controls.style.cssText = 'display: flex; gap: 12px; align-items: center; flex-shrink: 0;';
+    
+    // TTS Button (Start/Pause/Stop functionality will be managed in JS)
+    const voiceBtn = document.createElement('button');
+    voiceBtn.id = 'simplified-voice-btn';
+    voiceBtn.innerHTML = '🔊 Read';
+    voiceBtn.title = 'Read aloud';
+    // Green background for Read button
+    voiceBtn.style.cssText = 'padding: 10px 16px; background: #4CAF50; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.2s; box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);';
+    
+    // Restore Button (Recolored to red to match the image, not blue gradient as previously planned)
+    const restoreBtn = document.createElement('button');
+    restoreBtn.textContent = '❌ Restore Original Page';
+    restoreBtn.id = 'simplified-restore-btn-bottom';
+    // Red background for Restore button
+    restoreBtn.style.cssText = 'padding: 10px 16px; background: #f44336; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.2s; box-shadow: 0 4px 12px rgba(244, 67, 54, 0.3);';
+    restoreBtn.onclick = function() { restoreOriginalContent(); };
+    
+    controls.appendChild(voiceBtn);
+    controls.appendChild(restoreBtn);
+    header.appendChild(headerInfo);
+    header.appendChild(controls);
+    
+    // 5. Add Simplified Content
+    const content = document.createElement('div');
+    content.id = 'simplified-content';
+    content.className = 'ai-formatted-content';
+    content.style.cssText = 'color: #333; line-height: 1.9; font-size: 18px;';
+    content.innerHTML = formattedContent;
+
+    // 6. Assemble and inject
+    simplifiedWrapper.appendChild(header);
+    simplifiedWrapper.appendChild(content);
+    
+    // Add the controls again at the bottom for better visibility (as shown in the image)
+    const bottomControls = document.createElement('div');
+    bottomControls.style.cssText = 'margin-top: 25px; padding-top: 15px; border-top: 1px solid #f0f0f0; text-align: center;';
+    
+    const restoreBtnBottom = document.createElement('button');
+    restoreBtnBottom.textContent = '❌ Restore Original Page';
+    restoreBtnBottom.id = 'simplified-restore-btn-bottom-copy';
+    restoreBtnBottom.style.cssText = 'padding: 10px 20px; background: #f44336; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; box-shadow: 0 4px 12px rgba(244, 67, 54, 0.3);';
+    restoreBtnBottom.onclick = function() { restoreOriginalContent(); };
+    
+    // Now add the voice button next to the restore button at the bottom
+    const voiceBtnBottom = document.createElement('button');
+    voiceBtnBottom.id = 'simplified-voice-btn-bottom-copy';
+    voiceBtnBottom.innerHTML = '🔊 Read Simplified Text';
+    voiceBtnBottom.title = 'Read aloud';
+    voiceBtnBottom.style.cssText = 'padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; margin-right: 10px; box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);';
+    
+    bottomControls.appendChild(voiceBtnBottom);
+    bottomControls.appendChild(restoreBtnBottom);
+    simplifiedWrapper.appendChild(bottomControls);
+
+
+    // Clear container and append the new wrapper
+    targetContainer.innerHTML = '';
+    targetContainer.appendChild(simplifiedWrapper);
+    
+    // 7. Update document title
+    document.title = '✨ Simplified: ' + (originalPageContent.title || 'Page');
+    
+    // 8. Setup in-page Voice Reader for the simplified text (apply listener to both buttons/all functionality)
+    setupSimplifiedVoiceReader(simplifiedText); 
+    
+    // Send a success notification to the sidepanel/user
+    chrome.runtime.sendMessage({ type: 'SIMPLIFY_STATUS', status: 'simplified' });
+    console.log('✅ Main content replaced in place.');
+}
+
+// NEW: Function to handle Text-to-Speech logic for the simplified content
+function setupSimplifiedVoiceReader(text) {
+    const voiceBtnTop = document.getElementById('simplified-voice-btn');
+    const voiceBtnBottom = document.getElementById('simplified-voice-btn-bottom-copy');
+    
+    if (!voiceBtnTop || !window.speechSynthesis) return;
+
+    let isReading = false;
+    let isPaused = false;
+    let synth = window.speechSynthesis;
+    
+    // Clear global reference just in case
+    simplifiedVoiceUtterance = null;
+    
+    const updateButtons = (state) => {
+        const [text, background, reading, paused] = state;
+        [voiceBtnTop, voiceBtnBottom].forEach(btn => {
+            if (btn) {
+                btn.innerHTML = text;
+                btn.style.background = background;
+            }
+        });
+        isReading = reading;
+        isPaused = paused;
+    };
+
+    const startReading = () => {
+        synth.cancel(); // Cancel any existing speech
+        
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 0.9;
+        
+        const voices = synth.getVoices();
+        const preferredVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google')) ||
+                               voices.find(v => v.lang.startsWith('en')) ||
+                               voices[0];
+        if (preferredVoice) {
+            utterance.voice = preferredVoice;
+        }
+        
+        utterance.onstart = function() {
+            updateButtons(['⏸️ Pause', '#ff9800', true, false]);
+        };
+        
+        utterance.onend = function() {
+            updateButtons(['🔊 Read', '#4CAF50', false, false]);
+            simplifiedVoiceUtterance = null;
+        };
+        
+        utterance.onerror = function(e) {
+            console.error('Simplified TTS Error:', e);
+            updateButtons(['🔊 Read', '#f44336', false, false]);
+            simplifiedVoiceUtterance = null;
+        };
+        
+        simplifiedVoiceUtterance = utterance;
+        synth.speak(utterance);
+    };
+
+    const handleStop = () => {
+        if (isReading) {
+            synth.cancel();
+            updateButtons(['🔊 Read', '#4CAF50', false, false]);
+            simplifiedVoiceUtterance = null;
+        }
+    };
+    
+    const handlePauseResume = () => {
+        if (isReading && !isPaused) {
+            // Pause
+            synth.pause();
+            updateButtons(['▶️ Resume', '#ff9800', true, true]);
+        } else if (isReading && isPaused) {
+            // Resume
+            synth.resume();
+            updateButtons(['⏸️ Pause', '#ff9800', true, false]);
+        } else {
+            // Start
+            startReading();
+        }
+    };
+
+    [voiceBtnTop, voiceBtnBottom].forEach(btn => {
+        if (btn) {
+            btn.addEventListener('click', handlePauseResume);
+        }
+    });
+
+    // Add an event listener to the page restoration buttons to ensure TTS is stopped externally
+    const restoreBtnTop = document.getElementById('simplified-restore-btn');
+    const restoreBtnBottom = document.getElementById('simplified-restore-btn-bottom-copy');
+    
+    [restoreBtnTop, restoreBtnBottom].forEach(btn => {
+        if(btn) {
+            btn.addEventListener('click', handleStop);
+        }
+    });
+    
+    // Optional: Add global listener for escape key to stop TTS (Good Accessibility practice)
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && isReading) {
+            handleStop();
+        }
+    });
+}
+
+
+function formatAIResponse(text) {
+    let formatted = text;
+    formatted = formatted.replace(/``````/g, function(match, code) {
+        return '<pre style="background: #f5f5f5; padding: 16px; border-radius: 8px;"><code>' + code.trim() + '</code></pre>';
+    });
+    formatted = formatted.replace(/`([^`]+)`/g, function(match, code) {
+        return '<code style="background: #f0f0f0; padding: 2px 6px; border-radius: 4px; color: #d63384;">' + code + '</code>';
+    });
+    formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong style="font-weight: 700;">$1</strong>');
+    const paragraphs = formatted.split('\n\n').filter(function(p) { return p.trim(); });
+    return paragraphs.map(function(para) {
+        return '<p style="margin: 0 0 1.5em 0;">' + para.trim() + '</p>';
+    }).join('\n');
+}
+
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('📨 Content script received:', message.type);
+
+        if (message.type === 'REPLACE_PAGE_CONTENT') {
+        replacePageWithSimplified(message.simplifiedContent, message.level);
+        sendResponse({ success: true });
+        return true;
+    }
+
+    if (message.type === 'RESTORE_ORIGINAL_CONTENT') {
+        restoreOriginalContent();
+        sendResponse({ success: true });
+        return true;
+    }
+
     
     if (message.type === 'PING') {
         sendResponse({ status: 'ready' });
@@ -377,11 +705,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             })
             .catch(error => {
                 isProcessing = false;
-                console.error('❌ [Content AI] AI process failed:', error);
+                console.error('❌ Activation error:', error);
                 showNotification('Error: ' + error.message, 'error');
                 sendResponse({ success: false, error: error.message });
             });
         return true; // Keep the message channel open for async response
+    }
+    
+    // NEW: Listen for status updates from the page simplification logic
+    if (message.type === 'SIMPLIFY_STATUS') {
+        // Do nothing here; this is handled in the listener of the sidepanel.
+        // Returning false allows the message to finish asynchronously.
+        return false;
     }
     
     return false;
@@ -487,8 +822,8 @@ async function callAI(prompt, options = {}) {
 
     const feature = options.feature || 'PROMPT'; // Use PROMPT as default if not passed
 
-    // CRITICAL FIX: Only attempt local AI for PROMPT and PROOFREAD
-    const shouldAttemptLocal = feature === 'PROMPT' || feature === 'PROOFREAD'; 
+    // CRITICAL FIX: Only attempt local AI for PROMPT, PROOFREAD, SUMMARIZE, and TRANSLATE
+    const shouldAttemptLocal = feature === 'PROMPT' || feature === 'PROOFREAD' || feature === 'SUMMARIZE' || feature === 'TRANSLATE'; 
 
     // --- FIX 2: Check length before attempting local AI to speed up fallback ---
     let skipLocalAttempt = false;
@@ -512,7 +847,6 @@ async function callAI(prompt, options = {}) {
                 console.log('📊 [Hybrid] Local AI availability (Content Script):', availability);
 
                 // --- Apply Accessibility Prompt Logic ---
-                // The Proofreader OT capability is enabled via the token. We use the same languageModel API.
                 const systemPrompt = buildAccessibilityPrompt(currentProfile);
                 // --- END NEW ---
 
@@ -812,12 +1146,6 @@ async function activateOCRTranslate() {
             resultDiv.innerHTML = `
                 <div style="padding: 16px; background: #ffebee; border-radius: 8px; color: #c62828;">
                     <strong>❌ Error:</strong> ${error.message}<br><br>
-                    <small>
-                        <strong>Troubleshooting:</strong><br>
-                        1. Make sure Flask backend is running (python app.py)<br>
-                        2. Check Gemini API key in .env file<br>
-                        3. Test: <a href="http://localhost:5000/api/test/all" target="_blank" style="color: #1976d2;">http://localhost:5000/api/test/all</a>
-                    </small>
                 </div>
             `;
         }
@@ -1220,6 +1548,7 @@ async function showSummarizerOptions() {
         try {
             const prompt = `Summarize the following document concisely, clearly, and using bullet points for key takeaways. Document text: ${fullContent}`;
             
+            // The callAI logic now prioritizes the dedicated Summarize OT/Nano, then falls back to cloud
             const summary = await callAI(prompt, { feature: 'SUMMARIZE' });
 
             // Use formatAIResponse
@@ -1314,6 +1643,7 @@ async function showTranslatorInterface() {
         try {
             const prompt = `Translate the following text into ${targetLanguage}. Provide only the translation. Selected text: ${selectedText}`;
             
+            // The callAI logic now prioritizes the dedicated Translate OT/Nano, then falls back to cloud
             const translation = await callAI(prompt, { feature: 'TRANSLATE' });
 
             // Use formatAIResponse
@@ -1625,7 +1955,6 @@ function createOverlay(id, title) {
         <div class="chromeai-modal-body"></div>
     `;
     
-    overlay.appendChild(modal);
     modal.querySelector('.close-btn').onclick = () => {
          // Stop any running TTS before closing
         const ttsContainer = modal.querySelector('.tts-container');
@@ -1636,6 +1965,7 @@ function createOverlay(id, title) {
         overlay.remove();
     };
     
+    overlay.appendChild(modal);
     return overlay;
 }
 
@@ -1661,7 +1991,8 @@ function extractMainContent() {
     // First check if it's a PDF
     if (window.pdfProcessor && window.pdfProcessor.isPDF()) {
         console.log('📄 Extracting PDF content...');
-        return window.pdfProcessor.extractText();
+        // FIX: Directly rely on pdfProcessor.extractText for all PDF cases
+        return cleanText(window.pdfProcessor.extractText());
     }
     
     const hostname = window.location.hostname;
@@ -1676,7 +2007,8 @@ function extractMainContent() {
             paragraphs.forEach(p => {
                 const content = p.textContent.trim();
                 if (content && content.length > 0) {
-                    text += content + '\n\n';
+                    // FIX: Use simple newline to concatenate paragraphs, cleanText will handle formatting
+                    text += content + '\n\n'; 
                 }
             });
             if (text.trim().length > 0) {
@@ -1689,17 +2021,17 @@ function extractMainContent() {
         }
     }
     
-    // 2. PDF Viewer Detection
+    // 2. PDF Viewer Detection (Redundant due to pdfProcessor check above, keeping minimal for safety)
     else if (url.endsWith('.pdf') || document.querySelector('.textLayer')) {
-        console.log('Extraction: PDF Viewer');
-        if (window.pdfProcessor && typeof window.pdfProcessor.extractText === 'function') {
+        console.log('Extraction: PDF Viewer (Fallback)');
+         if (window.pdfProcessor && typeof window.pdfProcessor.extractText === 'function') {
             text = window.pdfProcessor.extractText();
-        } else {
+         } else {
             const textLayers = document.querySelectorAll('.textLayer');
             textLayers.forEach(layer => {
                 text += layer.textContent + '\n\n';
             });
-        }
+         }
     }
 
     // 3. Word/Office Online Detection (Generic Approach)
@@ -1714,7 +2046,16 @@ function extractMainContent() {
     // 4. Standard Web Page / Fallback
     else {
         console.log('Extraction: Standard Web Page');
-        const selectors = ['article', 'main', '[role="main"]', '.content', '#content', '.post-content'];
+        const selectors = [
+            'article', 'main', '[role="main"]', '.content', '#content', '.post-content',
+            '.body-content', 
+            '[class*="article-body"]', 
+            '[class*="story-body"]', 
+            '[itemprop*="articleBody"]', 
+            '[class*="entry-content"]', 
+            '[class*="single-post"]', 
+            '[class*="body-text"]' 
+        ];
         for (const selector of selectors) {
             const element = document.querySelector(selector);
             if (element && element.innerText.trim().length > 100) {
@@ -1731,10 +2072,12 @@ function extractMainContent() {
 }
 
 function cleanText(text) {
+    // FIX 1: Preserve paragraph breaks (\n\n) but clean up excessive whitespace/newlines
     return text
-        .replace(/\s+/g, ' ')
-        .replace(/[\r\n]+/g, ' ')
-        .replace(/\s+([.,!?;:])/g, '$1')
+        .replace(/\s+/g, ' ')               // Normalize all whitespace to single space
+        .replace(/([\n\r]){2,}/g, '\n\n')   // Collapse excessive newlines into two (paragraph break)
+        .replace(/\s+([.,!?;:])/g, '$1')    // Remove space before punctuation
+        .replace(/\n\s*\n/g, '\n\n')        // Clean up newlines surrounded by spaces
         .trim();
 }
 
@@ -1805,8 +2148,62 @@ function displayInsightsOverlay(insights, sessionCount) {
     };
 }
 
+// ============================================
+// CRITICAL FIX: STYLE RESET LOGIC
+// ============================================
+
+// NEW: Helper to clean up specific, non-class-based inline styles applied by profiles
+function clearProfileInlineStyles() {
+    // Selectors for elements that might have received ADHD highlights
+    const intrusiveSelectors = [
+        'main', 'article', '[role="main"]',
+        '.content', '.main-content', '.post',
+        '.body-content', 
+        '[class*="article-body"]', 
+        '[class*="story-body"]',
+        '[itemprop*="articleBody"]', 
+        '[class*="entry-content"]', 
+        '[class*="single-post"]', 
+        '[class*="body-text"]' 
+    ];
+
+    intrusiveSelectors.forEach(selector => {
+        const elements = document.querySelectorAll(selector);
+        elements.forEach(el => {
+            // Clear only the styles potentially set by ADHD's focusMainContent
+            el.style.removeProperty('box-shadow');
+            el.style.removeProperty('transition');
+        });
+    });
+    
+    // Selectors for elements that might have been hidden/dimmed by ADHD
+    const distractingSelectors = [
+        '[id*="ad"]', '[class*="ad"]', 'iframe[src*="ads"]',
+        '[class*="banner"]', '[id*="banner"]', '[class*="popup"]', 
+        '[id*="popup"]', '[class*="notification"]',
+        'aside', 'nav', '.sidebar', '.advertisement', 'footer'
+    ];
+    
+    distractingSelectors.forEach(selector => {
+         try {
+            const elements = document.body.querySelectorAll(selector);
+            elements.forEach(el => {
+                // Clear inline style set by hideDistractingElementsGradually (display: none !important)
+                el.style.removeProperty('display'); 
+            });
+         } catch(e) {}
+    });
+    
+    // Clear styles applied to html tag that might conflict (e.g., from old ADHD code)
+    document.documentElement.style.removeProperty('scroll-behavior');
+}
+
+
 // FIX: New function to apply/remove accessibility profiles on the content page
 function applyProfileStyles(profileName) {
+    
+    // CRITICAL FIX 1: Clear inline styles from previous profile/mode BEFORE removing classes
+    clearProfileInlineStyles(); 
     
     // 1. Reset all existing accessibility classes from html (best practice)
     document.documentElement.classList.remove(
@@ -1822,6 +2219,8 @@ function applyProfileStyles(profileName) {
         existingLine.remove();
     }
 
+    // This handles both switching (removes old classes, adds new one) and
+    // turning OFF (removes all classes, runs clearInlineStyles, and does nothing more).
     if (profileName) {
         // Apply new profile if one is selected
         document.documentElement.classList.add(`accessibility-${profileName}`);
@@ -1836,22 +2235,26 @@ function applyProfileStyles(profileName) {
         console.log('✅ Removed all accessibility profile classes.');
     }
 }
+// ============================================
+
 
 // Enhanced ADHD Mode Implementation
 function applyADHDStyles() {
     console.log('🔄 Applying ADHD styles...');
 
-    // Test 1: Visual confirmation
-    // document.body.style.border = '5px solid red'; // Removed visual test line
-
-    // Test 2: Hide distracting elements
+    // Hide distracting elements
     hideDistractingElementsGradually();
 
-    // Test 3: Focus main content
+    // Focus main content
     focusMainContent();
 
-    // Add reading line
-    addReadingLine();
+    // Add reading line only if enabled
+    if (showReadingLine) {
+        addReadingLine();
+        console.log('✅ Reading line enabled');
+    } else {
+        console.log('ℹ️ Reading line disabled');
+    }
 
     console.log('🎯 ADHD styles applied');
 }
@@ -1894,7 +2297,14 @@ function hideDistractingElementsGradually() {
 function focusMainContent() {
     const mainSelectors = [
         'main', 'article', '[role="main"]',
-        '.content', '.main-content', '.post'
+        '.content', '.main-content', '.post',
+        '.body-content', 
+        '[class*="article-body"]', 
+        '[class*="story-body"]',
+        '[itemprop*="articleBody"]', 
+        '[class*="entry-content"]', 
+        '[class*="single-post"]', 
+        '[class*="body-text"]' 
     ];
 
     for (let selector of mainSelectors) {
@@ -1902,7 +2312,7 @@ function focusMainContent() {
         if (element) {
             console.log(`✅ Found main content: ${selector}`);
 
-            // Add a subtle highlight
+            // Add a subtle highlight (inline style)
             element.style.setProperty('box-shadow', '0 0 0 2px #4285f4', 'important');
             element.style.setProperty('transition', 'box-shadow 0.3s ease', 'important');
 
@@ -1935,11 +2345,73 @@ function addReadingLine() {
         line.style.top = `${e.clientY}px`;
     });
 }
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'TOGGLE_READING_LINE') {
+        toggleReadingLine(message.enabled);
+        sendResponse({ success: true, enabled: message.enabled });
+        return true;
+    }
+});
+
 
 // CRITICAL FIX: Call the state loader immediately on script execution
 loadProfileAndState();
 
 console.log('✅ ChromeAI Plus content script ready');
+
+// ============================================
+// READING LINE TOGGLE FUNCTIONALITY
+// ============================================
+
+// Toggle Reading Line Feature
+function toggleReadingLine(enabled) {
+    showReadingLine = enabled;
+
+    // Save preference to storage
+    chrome.storage.local.set({ showReadingLine: enabled }, () => {
+        console.log(`📝 Reading line preference saved: ${enabled}`);
+    });
+
+    if (!enabled) {
+        // Remove existing reading line
+        const existingLine = document.querySelector('.chromeai-reading-line');
+        if (existingLine) {
+            existingLine.remove();
+            console.log('🗑️ Reading line removed');
+        }
+    } 
+    
+    // FIX 3: When enabling, check for the ADHD class and re-run applyADHDStyles 
+    // to ensure the line is added if the profile is active.
+    else if (document.documentElement.classList.contains('accessibility-adhd')) {
+        applyADHDStyles(); 
+        console.log('✅ Reading line re-added via toggle');
+    }
+}
+
+// Load reading line preference on startup
+chrome.storage.local.get(['showReadingLine'], (result) => {
+    if (result.showReadingLine !== undefined) {
+        showReadingLine = result.showReadingLine;
+        console.log(`📖 Reading line preference loaded: ${showReadingLine}`);
+    }
+});
+
+// Add message listener for reading line toggle
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'TOGGLE_READING_LINE') {
+        toggleReadingLine(message.enabled);
+        sendResponse({ success: true, enabled: message.enabled });
+        return true;
+    }
+    // NEW: Listen for status updates from the page simplification logic
+    if (message.type === 'SIMPLIFY_STATUS') {
+        // Do nothing here; this is handled in the listener of the sidepanel.
+        // Returning false allows the message to finish asynchronously.
+        return false;
+    }
+});
+
 })();
 (async function initializePDFSupport() {
     if (window.pdfProcessor && window.pdfProcessor.isPDF()) {
@@ -1951,4 +2423,6 @@ console.log('✅ ChromeAI Plus content script ready');
             console.log('⚠️ PDF content load timeout');
         }
     }
+
+
 })();

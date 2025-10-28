@@ -22,7 +22,7 @@
     --status-success-color: #6ee7b7;
     --status-error-bg: #450a0a;
     --status-error-color: #fca5a5;
-    --status-info-bg: none;
+    --status-info-bg: #1e3a4e;
     --status-info-color: #93c5fd;
     --preview-bg: #222222;
     --response-bg: #222222;
@@ -123,27 +123,34 @@ body::before {
 
 /* Sections */
 .auth-section,
-.mode-section,
 .profile-section,
 .features-section,
 .settings-section,
 .shortcuts-section,
-.logout-section,
-.dark-mode-toggle-section {
+.logout-section {
     padding: 20px;
     border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .dark-mode .auth-section,
-.dark-mode .mode-section,
 .dark-mode .profile-section,
 .dark-mode .features-section,
 .dark-mode .settings-section,
 .dark-mode .shortcuts-section,
-.dark-mode .logout-section,
-.dark-mode .dark-mode-toggle-section {
+.dark-mode .logout-section {
     border-bottom: 1px solid var(--border-light);
 }
+
+/* Quick Toggles Section - NEW */
+.quick-toggles-section {
+    padding: 20px 20px 8px 20px; /* Adjusted padding to look good with cards */
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.dark-mode .quick-toggles-section {
+    border-bottom: 1px solid var(--border-light);
+}
+
 
 h3 {
     margin-bottom: 15px;
@@ -181,11 +188,6 @@ h3 {
     font-size: 0.8em;
     color: #f44336;
     text-align: center;
-}
-
-/* Mode Section */
-.mode-section {
-    background: var(--bg-surface, #f8fafc);
 }
 
 /* Profile Section */
@@ -250,6 +252,15 @@ h3 {
 }
 
 /* Features Section */
+.features-section {
+    padding: 20px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.dark-mode .features-section {
+    border-bottom: 1px solid var(--border-light);
+}
+
 .features-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -864,7 +875,7 @@ kbd {
 }
 
 .status-message.info {
-    background: none;
+    background: #dbeafe;
     color: #1e40af;
     border: 1px solid #93c5fd;
     display: block;
@@ -1633,3 +1644,205 @@ kbd {
 }
 /* All .tts-menu styles (e.g., .tts-menu, .tts-menu .tts-control-btn) have been REMOVED */
 /* === END NEW TTS STYLES === */
+
+/* ============================================
+   IMPROVED TOGGLES SECTION
+   ============================================ */
+
+.settings-section {
+    margin: 24px 0;
+    padding: 0;
+}
+
+.section-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin: 0 0 20px 0;
+    padding: 0 0 12px 0;
+    border-bottom: 2px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.toggle-card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: all 0.3s ease;
+}
+
+.toggle-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border-color: #667eea;
+}
+
+.toggle-card.disabled {
+    opacity: 0.6;
+    background: #f9fafb;
+}
+
+.toggle-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+}
+
+.toggle-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+.toggle-icon {
+    font-size: 24px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
+.toggle-text h4 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.toggle-text p {
+    margin: 4px 0 0 0;
+    font-size: 13px;
+    color: #6b7280;
+    line-height: 1.4;
+}
+
+.toggle-note {
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: #fef3c7;
+    border-left: 3px solid #f59e0b;
+    border-radius: 6px;
+}
+
+.toggle-note small {
+    color: #92400e;
+    font-size: 12px;
+    display: block;
+}
+
+.toggle-note.success {
+    background: #d1fae5;
+    border-left-color: #10b981;
+}
+
+.toggle-note.success small {
+    color: #065f46;
+}
+
+/* Modern Toggle Switch */
+.modern-toggle {
+    position: relative;
+    display: inline-block;
+    width: 52px;
+    height: 28px;
+    flex-shrink: 0;
+}
+
+.modern-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-switch {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #d1d5db;
+    border-radius: 28px;
+    transition: all 0.3s ease;
+}
+
+.toggle-switch:before {
+    position: absolute;
+    content: "";
+    height: 22px;
+    width: 22px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.modern-toggle input:checked + .toggle-switch {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.modern-toggle input:checked + .toggle-switch:before {
+    transform: translateX(24px);
+}
+
+.modern-toggle input:disabled + .toggle-switch {
+    background-color: #e5e7eb;
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.modern-toggle input:disabled + .toggle-switch:before {
+    background-color: #f3f4f6;
+}
+
+/* Dark mode styles for toggles */
+body.dark-mode .toggle-card {
+    background: #374151;
+    border-color: #4b5563;
+}
+
+body.dark-mode .toggle-card:hover {
+    border-color: #667eea;
+}
+
+body.dark-mode .toggle-text h4 {
+    color: #f9fafb;
+}
+
+body.dark-mode .toggle-text p {
+    color: #d1d5db;
+}
+
+body.dark-mode .section-title {
+    color: #f9fafb;
+    border-bottom-color: #4b5563;
+}
+
+body.dark-mode .toggle-note {
+    background: #422006;
+    border-left-color: #f59e0b;
+}
+
+body.dark-mode .toggle-note small {
+    color: #fcd34d;
+}
+
+body.dark-mode .toggle-note.success {
+    background: #064e3b;
+    border-left-color: #10b981;
+}
+
+body.dark-mode .toggle-note.success small {
+    color: #6ee7b7;
+}

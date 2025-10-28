@@ -1,14 +1,4 @@
 // ============================================
-// CONFIGURATION
-// ============================================
-
-// LOCAL TESTING
-const BACKEND_URL = 'http://localhost:5000';
-
-// PRODUCTION: Uncomment and update
-// const BACKEND_URL = 'https://YOUR-APP-NAME.onrender.com';
-
-// ============================================
 // ADVANCED VOICE READER - MULTI-FORMAT SUPPORT
 // ============================================
 

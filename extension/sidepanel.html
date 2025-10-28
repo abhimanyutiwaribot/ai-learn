@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>ChromeAI Plus - Accessibility Assistant</title>
+    <title>AI-Learn - Learning Assistant</title>
     <link rel="stylesheet" href="sidepanel.css">
     <link rel="stylesheet" href="styles/loading.css">
 </head>
@@ -11,9 +11,9 @@
         <div class="header">
             <div class="logo-section">
                 <img src="assets/icons/icon48.png" alt="ChromeAI Plus" class="logo">
-                <h1>ChromeAI Plus</h1>
+                <h1>AI-Learn</h1>
             </div>
-            <p class="subtitle">AI-Powered Accessibility Assistant</p>
+            <p class="subtitle">AI-Powered Smart Assistant</p>
         </div>
 
         <div class="auth-section" id="auth-section">
@@ -29,23 +29,58 @@
         </div>
 
         <div id="main-content" style="display: none;">
-            <div class="dark-mode-toggle-section">
-                <label class="dark-mode-toggle-label toggle-label">
-                    <input type="checkbox" id="dark-mode-toggle">
-                    <span class="toggle-slider"></span>
-                    Enable Dark Mode
-                </label>
-            </div>
             
-            <div class="mode-section">
-                <h3>Accessibility Mode</h3>
-                <label class="toggle-label">
-                    <input type="checkbox" id="accessibility-mode-toggle">
-                    <span class="toggle-slider"></span>
-                    Enable Accessibility Mode
-                </label>
-            </div>
+            <div class="quick-toggles-section">
+                <h3>Quick Toggles</h3>
 
+                <div class="toggle-card" id="dark-mode-toggle-card">
+                    <div class="toggle-content">
+                        <div class="toggle-info">
+                            <div class="toggle-icon" style="background: #333333;"><span style="color: white;">🌙</span></div>
+                            <div class="toggle-text">
+                                <h4>Enable Dark Mode</h4>
+                                <p>Applies a dark theme to the side panel for comfortable night viewing.</p>
+                            </div>
+                        </div>
+                        <label class="modern-toggle">
+                            <input type="checkbox" id="dark-mode-toggle">
+                            <span class="toggle-switch"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="toggle-card" id="accessibility-mode-toggle-card">
+                    <div class="toggle-content">
+                        <div class="toggle-info">
+                            <div class="toggle-icon" style="background: #4f46e5;"><span>♿</span></div>
+                            <div class="toggle-text">
+                                <h4>Accessibility Mode</h4>
+                                <p>Activates specialized reading profiles and features for the current page.</p>
+                            </div>
+                        </div>
+                        <label class="modern-toggle">
+                            <input type="checkbox" id="accessibility-mode-toggle">
+                            <span class="toggle-switch"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="toggle-card" id="reading-line-toggle-card">
+                    <div class="toggle-content">
+                        <div class="toggle-info">
+                            <div class="toggle-icon" style="background: #10b981;"><span>📏</span></div>
+                            <div class="toggle-text">
+                                <h4>ADHD Reading Line</h4>
+                                <p>A horizontal line that follows your mouse to help maintain reading focus (ADHD mode only).</p>
+                            </div>
+                        </div>
+                        <label class="modern-toggle">
+                            <input type="checkbox" id="reading-line-toggle" checked>
+                            <span class="toggle-switch"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
             <div class="profile-section" id="profile-section">
                 <h3>Select Your Profile</h3>
                 <div class="profile-grid">
@@ -121,6 +156,13 @@
                         <div class="feature-info">
                             <span class="feature-name">Simplify</span>
                             <span class="feature-desc">Easy reading</span>
+                        </div>
+                    </button>
+                    <button class="feature-btn" id="simplify-web-btn">
+                        <span class="icon">🌐</span>
+                        <div class="feature-info">
+                            <span class="feature-name">Simplify Web</span>
+                            <span class="feature-desc">Clean & simplify page</span>
                         </div>
                     </button>
                     <button class="feature-btn feature-star" id="voice-reader-btn">
@@ -495,6 +537,42 @@
                 </div>
             </div>
         </div>
+
+        <div class="feature-interface" id="simplify-web-interface" style="display: none;">
+            <div class="feature-header">
+                <button class="back-btn" id="simplify-web-back-btn">
+                    <span>←</span>
+                    <span>Back</span>
+                </button>
+                <h3>🌐 Simplify Webpage</h3>
+            </div>
+
+            <div class="feature-content">
+                <p style="color: #666; margin-bottom: 20px; line-height: 1.6; font-size: 14px;">
+                    Transform complex webpages into clean, simplified content. The AI will extract the main content and rewrite it in simpler language, replacing the original page.
+                </p>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333; font-size: 14px;">Simplification Level:</label>
+                    <select id="simplify-web-level" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                        <option value="basic">Basic - Very simple words</option>
+                        <option value="intermediate" selected>Intermediate - Clear sentences</option>
+                        <option value="advanced">Advanced - Full rewrite</option>
+                    </select>
+                </div>
+
+                <button class="action-btn primary-btn" id="simplify-web-submit" style="width: 100%;">
+                    🌐 Simplify This Page
+                </button>
+
+                <button class="action-btn secondary-btn" id="restore-original-btn" style="width: 100%; margin-top: 12px; display: none; background: #6c757d;">
+                    ↩️ Restore Original Page
+                </button>
+
+                <div id="simplify-web-status" style="margin-top: 16px; padding: 12px; border-radius: 8px; display: none; font-size: 14px;"></div>
+            </div>
+        </div>
+
 
         <div class="footer">
             <p>💙 Built for accessibility & inclusion</p>
