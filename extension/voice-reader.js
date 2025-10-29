@@ -1,4 +1,14 @@
 // ============================================
+// CONFIGURATION
+// ============================================
+
+// LOCAL TESTING
+const BACKEND_URL = 'https://ai-learn-2i3f.onrender.com/';
+
+// PRODUCTION: Uncomment and update
+// const BACKEND_URL = 'https://YOUR-APP-NAME.onrender.com';
+
+// ============================================
 // ADVANCED VOICE READER - MULTI-FORMAT SUPPORT
 // ============================================
 
@@ -21,6 +31,50 @@ class VoiceReader {
         this.loadSettings();
         this.initializeVoices();
         this.detectDocumentType();
+    }
+
+
+    _findMainContentElement() {
+        // Priority list of content containers, including Wikipedia-specific IDs
+        const selectors = [
+            'article', 
+            'main', 
+            '[role="main"]', 
+            '#mw-content-text', 
+            '#bodyContent',      
+            '[class*="article-body"]', 
+            '[class*="story-body"]',
+            '.content', 
+            '#content', 
+            '.post-content'
+        ];
+        
+        for (const selector of selectors) {
+            const element = document.querySelector(selector);
+            // Check if the element exists and is visible and has significant text
+            if (element && element.offsetParent !== null && element.innerText.trim().length > 500) { 
+                console.log(`🌐 Found main content element: ${selector}`);
+                return element;
+            }
+        }
+        
+        // Fallback to the body
+        return document.body;
+    }
+
+    // Simple Language Detection Helper
+    _detectLanguage(text) {
+        // Detect most common languages using simple patterns/character sets
+        if (/[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(text)) return 'ko-KR'; 
+        if (/[ぁ-ゔァ-ヴー々〆〤ヶ]/.test(text)) return 'ja-JP'; 
+        if (/[\u4e00-\u9fff]/.test(text)) return 'zh-CN'; 
+        if (/[\u0600-\u06ff]/.test(text)) return 'ar-SA';
+        if (/[\u0900-\u097f]/.test(text)) return 'hi-IN'; 
+        if (/[áéíóúñÁÉÍÓÚÑ¿¡]/.test(text)) return 'es-ES'; 
+        if (/[àâéèêëîïôœùûüÿçÀÂÉÈÊËÎÏÔŒÙÛÜŸÇ]/.test(text)) return 'fr-FR'; 
+        if (/[äöüßÄÖÜẞ]/.test(text)) return 'de-DE'; 
+        // Default to English 
+        return 'en-US';
     }
     
     // ============================================
@@ -75,29 +129,10 @@ class VoiceReader {
     }
     
     initializeVoices() {
+        // Removed hardcoded English preference. We rely on the browser's default 
+        // voice selection based on the language hint set in the speak method.
         this.synth.addEventListener('voiceschanged', () => {
-            const voices = this.synth.getVoices();
-            
-            // Prefer high-quality English voices
-            const preferredVoices = [
-                'Google US English',
-                'Microsoft David Desktop',
-                'Microsoft Zira Desktop',
-                'Alex',
-                'Samantha'
-            ];
-            
-            for (const preferred of preferredVoices) {
-                const voice = voices.find(v => v.name.includes(preferred));
-                if (voice) {
-                    this.selectedVoice = voice;
-                    break;
-                }
-            }
-            
-            if (!this.selectedVoice) {
-                this.selectedVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
-            }
+            // No action needed here currently
         });
     }
     
@@ -348,8 +383,9 @@ class VoiceReader {
                 this.contentArray = this.extractParagraphs();
             } else {
                 // 'automatic' (Whole Page) mode
-                const fullContent = this.extractMainContent();
-                this.contentArray = [fullContent];
+                // FIX: Instead of placing the entire page into a single utterance, 
+                // chunk it into paragraphs to avoid TTS length limits and timeouts on long pages.
+                this.contentArray = this.extractParagraphs(); 
             }
             
             // --- Validation and Restart ---
@@ -403,11 +439,16 @@ class VoiceReader {
         this.synth.cancel();
         
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.voice = this.selectedVoice;
+        
+        // --- Language Detection and Voice Hinting ---
+        const detectedLang = this._detectLanguage(text);
+        utterance.lang = detectedLang; 
+        utterance.voice = null; 
+        
         utterance.rate = this.readingSpeed;
         utterance.pitch = this.readingPitch;
         utterance.volume = this.volume;
-        utterance.lang = 'en-US';
+        // --- END Language Detection ---
         
         utterance.onstart = () => {
             this.isReading = true;
@@ -418,7 +459,8 @@ class VoiceReader {
         utterance.onend = () => {
             this.removeHighlight();
             
-            if (this.readingMode !== 'automatic') {
+            // FIX: Treat 'automatic' mode as chunked reading now that contentArray holds paragraphs.
+            if (this.readingMode === 'automatic' || this.readingMode === 'paragraph' || this.readingMode === 'sentence') {
                 this.currentIndex++;
                 if (this.currentIndex < this.contentArray.length) {
                     setTimeout(() => this.readCurrent(), 500);
@@ -426,6 +468,7 @@ class VoiceReader {
                     this.stop();
                 }
             } else {
+                // This covers 'selection' mode, which is typically a single utterance
                 this.stop();
             }
         };
@@ -508,37 +551,23 @@ class VoiceReader {
     // ============================================
     
     extractMainContent() {
-        // 1. Google Docs
-        if (this.documentType === 'google-docs') {
-            console.log('📄 Extracting Google Docs content');
-            return this.extractGoogleDocsContent();
+        // 1. Handle non-webpage types first
+        if (this.documentType === 'google-docs') return this.extractGoogleDocsContent();
+        if (this.documentType === 'pdf') return this.extractPDFContent();
+        if (this.documentType === 'office-online') return this.extractOfficeContent();
+        
+        // 2. Webpage extraction using the main content element
+        const mainElement = this._findMainContentElement();
+        
+        // Use innerText for standard HTML extraction
+        let text = mainElement.innerText;
+        
+        if (!text || text.trim().length < 100) {
+            // Final fallback to body if main content extraction failed
+            text = document.body.innerText;
         }
-        
-        // 2. PDF
-        if (this.documentType === 'pdf') {
-            console.log('📑 Extracting PDF content');
-            return this.extractPDFContent();
-        }
-        
-        // 3. Office Online
-        if (this.documentType === 'office-online') {
-            console.log('📝 Extracting Office Online content');
-            return this.extractOfficeContent();
-        }
-        
-        // 4. Regular web pages
-        console.log('🌐 Extracting web page content');
-        const selectors = ['article', 'main', '[role="main"]', '.content', '#content', '.post-content'];
-        
-        for (const selector of selectors) {
-            const element = document.querySelector(selector);
-            if (element && element.innerText.trim().length > 100) {
-                return this.cleanText(element.innerText);
-            }
-        }
-        
-        // Fallback to body
-        return this.cleanText(document.body.innerText);
+
+        return this.cleanText(text);
     }
     
     extractGoogleDocsContent() {
@@ -618,15 +647,40 @@ class VoiceReader {
     }
     
     extractParagraphs() {
+        // 1. Try DOM-based extraction first (Best for large, well-structured pages like Wikipedia)
+        const mainElement = this._findMainContentElement();
+        const domParagraphs = [];
+
+        // Only attempt DOM extraction if we found a specific content element (not just the body)
+        if (mainElement.tagName !== 'BODY') {
+            // Find all <p> elements within the main container
+            const pElements = mainElement.querySelectorAll('p');
+            pElements.forEach(p => {
+                const text = p.textContent.trim();
+                // Check if the paragraph is not used for copyright, footnotes, etc.
+                if (text.length > 50 && !p.closest('.reference')) { 
+                    domParagraphs.push(text);
+                }
+            });
+            
+            // Ensure a meaningful number of paragraphs were found before trusting this method
+            if (domParagraphs.length >= 5) { 
+                console.log('✅ DOM-based paragraph extraction successful.');
+                return domParagraphs;
+            }
+        }
+        
+        // 2. Fallback to InnerText + String Splitting (for all other cases)
+        console.log('⚠️ Falling back to InnerText string splitting.');
         const mainContent = this.extractMainContent();
         
-        // Split by double newlines or long single newlines
-        const paragraphs = mainContent
-            .split(/\n\n+|\n{3,}/)
+        // Split by double newlines (relies on cleanText to provide these)
+        const textChunks = mainContent
+            .split('\n\n')
             .map(p => p.trim())
             .filter(p => p.length > 10);
         
-        return paragraphs.length > 0 ? paragraphs : [mainContent];
+        return textChunks.length > 0 ? textChunks : [mainContent];
     }
     
     extractSentences() {
@@ -641,10 +695,12 @@ class VoiceReader {
     }
     
     cleanText(text) {
+        // Fix: Preserves paragraph breaks and normalizes whitespace for better reading flow.
         return text
-            .replace(/\s+/g, ' ')
-            .replace(/[\r\n]+/g, ' ')
-            .replace(/\s+([.,!?;:])/g, '$1')
+            .replace(/\s+/g, ' ')               // Normalize all whitespace to single space
+            .replace(/([\n\r]){2,}/g, '\n\n')   // Collapse excessive newlines into two (paragraph break)
+            .replace(/\s+([.,!?;:])/g, '$1')    // Remove space before punctuation
+            .replace(/\n\s*\n/g, '\n\n')        // Clean up newlines surrounded by spaces
             .trim();
     }
     

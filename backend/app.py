@@ -14,8 +14,6 @@ from PIL import Image
 import io
 from docx import Document
 
-# CRITICAL FIX: Removed all APIError imports. General exceptions will be used.
-
 load_dotenv()
 
 app = Flask(__name__)
@@ -71,8 +69,6 @@ def health_check():
         "mongodb_enabled": MONGODB_ENABLED
     }), 200
     
-# (In chromeai-plus/backend/app.py - Add after the /health route)
-
 @app.route('/api/auth/register', methods=['POST'])
 def register_user():
     try:
@@ -90,7 +86,7 @@ def register_user():
         if db.users.find_one({'email': email}):
             return jsonify({"success": False, "error": "User already exists. Please log in instead."}), 409
             
-        # FIX: Hash the password before saving it
+        # Hash the password before saving it
         hashed_password = generate_password_hash(password)
         
         db.users.insert_one({
@@ -117,10 +113,10 @@ def login_user():
         if not email or not password:
             return jsonify({"success": False, "error": "Email and password are required"}), 400
 
-        # FIX 1: Retrieve user by email only
+        # Retrieve user by email only
         user = db.users.find_one({'email': email})
         
-        # FIX 2: Verify password hash
+        # Verify password hash
         if user and check_password_hash(user['password'], password):
             return jsonify({"success": True, "message": "Login successful", "userId": email}), 200
         else:
@@ -145,7 +141,7 @@ def analyze_image():
         user_query = data.get('query', 'Analyze this image')
         accessibility_mode = data.get('accessibilityMode')
         
-        # MODEL: gemini-2.0-flash-lite (Updated from gemini-2.0-flash-exp)
+        # MODEL: gemini-2.0-flash-lite
         model = genai.GenerativeModel('gemini-2.0-flash-lite')
         
         if accessibility_mode:
@@ -187,7 +183,7 @@ def ocr_translate():
         image_base64 = data.get('image')
         target_language = data.get('targetLanguage', 'English')
         
-        # MODEL: gemini-2.0-flash-lite (Updated from gemini-2.0-flash-exp)
+        # MODEL: gemini-2.0-flash-lite
         model = genai.GenerativeModel('gemini-2.0-flash-lite')
         
         prompt = f"""
@@ -239,14 +235,13 @@ def hybrid_prompt():
                     "error": "Cloud AI not available. Prompt too long for on-device processing."
                 }), 400
             
-            # --- FIX APPLIED: Truncate the prompt to 75000 characters for the cloud API ---
+            # Truncate the prompt to 10000 characters for the cloud API
             MAX_PROMPT_LENGTH = 10000 
             if len(prompt) > MAX_PROMPT_LENGTH:
                 # Truncate the content part of the prompt
                 prompt = prompt[:MAX_PROMPT_LENGTH] + "\n\n[Content truncated to fit API limit.]"
-            # -------------------------------------------------------------------------------
             
-            # MODEL: gemini-2.0-flash-lite (Updated from gemini-2.0-flash-exp)
+            # MODEL: gemini-2.0-flash-lite
             model = genai.GenerativeModel('gemini-2.0-flash-lite')
             
             if accessibility_mode:
@@ -292,17 +287,16 @@ def hybrid_simplify():
                     "error": "Cloud AI not available. Text too long for on-device processing."
                 }), 400
             
-            # MODEL: gemini-2.0-flash-lite (Updated from gemini-pro)
+            # MODEL: gemini-2.0-flash-lite
             model = genai.GenerativeModel('gemini-2.0-flash-lite')
             
-            prompt = f"Simplify this text for someone with {accessibility_mode or 'general'} reading needs. The simplified response must be in the same language as the input text:\n\n{text}"
+            # REMOVED: {accessibility_mode or 'general'} since 'general' mode is not needed
+            prompt = f"Simplify this text for someone with specific reading needs. The simplified response must be in the same language as the input text:\n\n{text}"
             
             if accessibility_mode == 'dyslexia':
                 prompt += "\n\nUse short sentences, simple words, and bullet points."
             elif accessibility_mode == 'adhd':
                 prompt += "\n\nUse concise chunks, numbered lists, and highlight key points."
-            elif accessibility_mode == 'non_native':
-                prompt += "\n\nUse simple vocabulary and define terms."
             
             response = model.generate_content(prompt)
             
@@ -366,63 +360,23 @@ def proxy_translate():
         return jsonify({"success": False, "error": str(e)}), 500
 
 # ============================================
-# ACCESSIBILITY PROFILE MANAGEMENT (MongoDB)
+# ACCESSIBILITY PROFILE MANAGEMENT (MongoDB) - Disabled for Privacy
 # ============================================
 
 @app.route('/api/accessibility/profile/save', methods=['POST'])
 def save_profile():
-    """Save user accessibility profile to MongoDB"""
-    try:
-        if not MONGODB_ENABLED:
-            return jsonify({"success": False, "error": "MongoDB not configured"}), 400
-            
-        data = request.json
-        user_id = data.get('userId')
-        profile = data.get('profile')
-        
-        # Upsert profile
-        db.accessibility_profiles.update_one(
-            {'user_id': user_id},
-            {
-                '$set': {
-                    'user_id': user_id,
-                    'profile': profile,
-                    'updated_at': datetime.utcnow()
-                }
-            },
-            upsert=True
-        )
-        
-        return jsonify({"success": True, "message": "Profile saved"}), 200
-        
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+    """Save user accessibility profile to MongoDB (DISABLED)"""
+    # CRITICAL PRIVACY FIX: No longer saving profile to database. Acknowledge and drop.
+    return jsonify({"success": True, "message": "Profile save skipped for user privacy"}), 200
 
 @app.route('/api/accessibility/profile/get/<user_id>', methods=['GET'])
 def get_profile(user_id):
-    """Retrieve user accessibility profile from MongoDB"""
-    try:
-        if not MONGODB_ENABLED:
-            return jsonify({"success": False, "error": "MongoDB not configured"}), 404
-            
-        profile_doc = db.accessibility_profiles.find_one({'user_id': user_id})
-        
-        if profile_doc:
-            # Remove MongoDB _id field
-            profile_doc.pop('_id', None)
-            
-            return jsonify({
-                "success": True,
-                "profile": profile_doc.get('profile', {})
-            }), 200
-        else:
-            return jsonify({
-                "success": False,
-                "message": "Profile not found"
-            }), 404
-            
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+    """Retrieve user accessibility profile from MongoDB (DISABLED)"""
+    # CRITICAL PRIVACY FIX: No longer retrieving profile from database.
+    return jsonify({
+        "success": False,
+        "message": "Profile retrieval disabled for user privacy"
+    }), 404
 
 # ============================================
 # ANALYTICS (MongoDB)
@@ -489,7 +443,7 @@ def get_insights(user_id):
             session['timestamp'] = session['timestamp'].isoformat()
             sessions_data.append(session)
         
-        # MODEL: gemini-2.0-flash-lite (Updated from gemini-pro)
+        # MODEL: gemini-2.0-flash-lite
         model = genai.GenerativeModel('gemini-2.0-flash-lite')
         prompt = f"""Analyze these learning session patterns and provide personalized insights:
 
@@ -564,12 +518,11 @@ def get_stats(user_id):
 # ============================================
 
 def build_accessibility_prompt(query, mode):
-    """Build prompts optimized for different accessibility needs"""
+    """Build prompts optimized for different accessibility needs (Language Learner removed)"""
     prompts = {
         'dyslexia': f"{query}\n\nFormat for dyslexia: short sentences, simple words, bullet points, clear spacing.",
         'adhd': f"{query}\n\nFormat for ADHD: concise chunks, numbered lists, key points highlighted.",
         'visual_impairment': f"{query}\n\nFormat for screen readers: describe visuals, clear hierarchy, no vague references.",
-        'non_native': f"{query}\n\nFormat for language learners: simple vocabulary, define terms, avoid idioms."
     }
     return prompts.get(mode, query)
 
@@ -614,7 +567,7 @@ def extract_text_from_docx(path):
         return ""
 
 def summarize_with_gemini(text):
-    """Summarize text using Gemini 2.5 Flash"""
+    """Summarize text using Gemini 2.0 Flash Lite"""
     if not GEMINI_ENABLED:
         return None
     
@@ -628,7 +581,7 @@ def summarize_with_gemini(text):
         return None
 
 def proofread_with_gemini(text):
-    """Proofread text using Gemini 2.5 Flash"""
+    """Proofread text using Gemini 2.0 Flash Lite"""
     if not GEMINI_ENABLED:
         return None
     
@@ -719,51 +672,6 @@ def proofread_pdf():
         proofread_result = f"Text extracted from PDF:\n\n{text[:1000]}\n\n[Add GOOGLE_AI_API_KEY in backend .env for AI-powered proofreading.]"
     
     return jsonify({"proofread": proofread_result}), 200
-
-@app.route('/process-pdf', methods=['POST'])
-def process_pdf():
-    """Process PDF with multiple options: summarize, proofread, or both"""
-    data = request.get_json() or {}
-    filename = data.get('filename')
-    action = data.get('action', 'summarize')  # 'summarize', 'proofread', or 'both'
-    
-    if not filename:
-        return jsonify({"error": "filename required"}), 400
-    path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(filename))
-    if not os.path.exists(path):
-        return jsonify({"error": "file not found"}), 404
-    
-    text = extract_text_from_pdf(path)
-    if not text:
-        return jsonify({"error": "no text extracted"}), 500
-    
-    result = {}
-    
-    if action in ['summarize', 'both']:
-        summary = None
-        if GEMINI_ENABLED:
-            try:
-                summary = summarize_with_gemini(text)
-            except Exception:
-                summary = None
-        if not summary:
-            summary = text.strip()[:2000]
-            if len(text) > 2000:
-                summary += "\n\n[Truncated preview. Add GOOGLE_AI_API_KEY in backend .env for better summaries.]"
-        result['summary'] = summary
-    
-    if action in ['proofread', 'both']:
-        proofread_result = None
-        if GEMINI_ENABLED:
-            try:
-                proofread_result = proofread_with_gemini(text)
-            except Exception:
-                proofread_result = None
-        if not proofread_result:
-            proofread_result = f"Text extracted from PDF:\n\n{text[:1000]}\n\n[Add GOOGLE_AI_API_KEY in backend .env for AI-powered proofreading.]"
-        result['proofread'] = proofread_result
-    
-    return jsonify(result), 200
 
 def extract_text_from_document(path):
     """Extract text from document based on file extension"""
