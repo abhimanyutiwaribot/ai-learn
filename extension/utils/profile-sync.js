@@ -1,4 +1,4 @@
-const BACKEND_URL = "YOUR_BACKEND_URL"
+const BACKEND_URL = "https://ai-learn-2i3f.onrender.com/"
 
 window.profileSync = {
     async saveProfile(userId, profile) {
@@ -8,11 +8,7 @@ window.profileSync = {
                 lastUpdated: Date.now()
             });
             
-            await fetch(`${BACKEND_URL}/api/accessibility/profile/save`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId, profile })
-            });
+            // Removed: Remote persistence call for privacy
             
             return { success: true };
         } catch (error) {
@@ -27,13 +23,7 @@ window.profileSync = {
                 return { success: true, profile: local.accessibilityProfile };
             }
             
-            const response = await fetch(`${BACKEND_URL}/api/accessibility/profile/get/${userId}`);
-            const data = await response.json();
-            
-            if (data.success) {
-                await chrome.storage.local.set({ accessibilityProfile: data.profile });
-                return { success: true, profile: data.profile };
-            }
+            // Removed: Remote retrieval call for privacy
             
             return { success: false };
         } catch (error) {

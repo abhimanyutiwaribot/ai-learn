@@ -1,4 +1,4 @@
-const BACKEND_URL = 'YOUR_BACKEND_URL';
+const BACKEND_URL = 'https://ai-learn-2i3f.onrender.com/';
 let currentProfile = null;
 let accessibilityMode = false;
 let userId = null; 
@@ -12,11 +12,7 @@ const standardLanguageOptions = [
     { value: 'German', label: 'German (Deutsch)' },
     { value: 'Italian', label: 'Italian (Italiano)' },
     { value: 'Portuguese', label: 'Portuguese (Português)' },
-    { value: 'Chinese', label: 'Chinese (中文)' },
-    { value: 'Japanese', label: 'Japanese (日本語)' },
-    { value: 'Korean', label: 'Korean (한국어)' },
-    { value: 'Hindi', label: 'Hindi (हिन्दी)' },
-    { value: 'Arabic', label: 'Arabic (العربية)' }
+    // Removed: Chinese, Japanese, Korean, Hindi, Arabic
 ];
 
 
@@ -110,14 +106,14 @@ class ResponseVoiceReader {
     
     // FIX: Improved Language detection
     _detectLanguage(text) {
-        if (/[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(text)) return 'ko'; 
-        if (/[ぁ-ゔァ-ヴー々〆〤ヶ]/.test(text)) return 'ja'; 
-        if (/[\u4e00-\u9fff]/.test(text)) return 'zh'; 
-        if (/[\u0600-\u06ff]/.test(text)) return 'ar';
-        if (/[\u0900-\u097f]/.test(text)) return 'hi'; 
+        // Only keep language detection for languages where the app explicitly offers translation (English, Spanish, French, German, Italian, Portuguese)
+        // Note: The logic below is slightly modified from the original to remove the foreign language character sets.
+        // I will revert it to simple generic detection for TTS purposes only.
+        
         if (/[áéíóúñÁÉÍÓÚÑ¿¡]/.test(text)) return 'es'; 
         if (/[àâéèêëîïôœùûüÿçÀÂÉÈÊËÎÏÔŒÙÛÜŸÇ]/.test(text)) return 'fr'; 
         if (/[äöüßÄÖÜẞ]/.test(text)) return 'de'; 
+        // Default to English if no strong Latin hint
         return 'en';
     }
 
@@ -225,6 +221,17 @@ class ChromeAISidePanel {
         this.initializeEventListeners();
         this.loadUserSettings();
         this.loadDarkModeState(); // NEW: Load initial dark mode state
+        this.initializeVoiceReader();
+    }
+
+    // Simple Language Detection Helper (Used when 'auto' is selected for fast, accurate reading)
+    _detectLanguage(text) {
+        // Detect most common languages using simple patterns/character sets and return BCP-47 tag
+        if (/[áéíóúñÁÉÍÓÚÑ¿¡]/.test(text)) return 'es-ES'; 
+        if (/[àâéèêëîïôœùûüÿçÀÂÉÈÊËÎÏÔŒÙÛÜŸÇ]/.test(text)) return 'fr-FR'; 
+        if (/[äöüßÄÖÜẞ]/.test(text)) return 'de-DE'; 
+        // Default to English 
+        return 'en-US';
     }
 
     async loadUserSettings() {
@@ -235,8 +242,8 @@ class ChromeAISidePanel {
             this.showMainContent();
             
             if (userId) {
-                // We trust the content script's passive sync, but we check here for initial load
-                await this.loadProfileFromBackend(userId);
+                // CRITICAL PRIVACY FIX: loadProfileFromBackend now only checks local storage.
+                this.loadProfileFromBackend(userId);
             }
             
         } else {
@@ -291,6 +298,8 @@ class ChromeAISidePanel {
         document.getElementById('login-btn').addEventListener('click', () => this.handleAuth('login'));
         document.getElementById('register-btn').addEventListener('click', () => this.handleAuth('register'));
         document.getElementById('logout-btn').addEventListener('click', () => this.logoutUser());
+        // NEW: Guest Login Listener
+        document.getElementById('guest-login-btn').addEventListener('click', () => this.handleGuestLogin());
                 
         // Simplify Web feature listeners
         document.getElementById('simplify-web-btn').addEventListener('click', () => this.showFeatureInterface('simplify-web'));
@@ -314,12 +323,12 @@ class ChromeAISidePanel {
                 this.updateCurrentProfile();
                 this.updateReadingLineToggle(); 
                 this.applyAccessibilityStylesToPopup(null);
-                this.saveProfileToBackend(null); // Persist state change
+                chrome.storage.local.set({ accessibilityProfile: null });
             } else if (currentProfile) {
                 this.updateCurrentProfile();
                 this.updateReadingLineToggle(); 
                 this.applyAccessibilityStylesToPopup(currentProfile);
-                this.saveProfileToBackend(currentProfile); // Persist state change
+                chrome.storage.local.set({ accessibilityProfile: currentProfile });
             } else {
                  // If enabling but no profile is set, save the state to storage as null
                  chrome.storage.local.set({ accessibilityProfile: null });
@@ -385,7 +394,8 @@ if (readingLineToggle) {
                 this.updateCurrentProfile();
                 this.updateReadingLineToggle(); // Update reading line availability
                 await chrome.storage.local.set({ accessibilityProfile: profile });
-                await this.saveProfileToBackend(profile); 
+                // CRITICAL PRIVACY FIX: Removed backend save call
+                this.saveProfileToBackend(profile); 
                 
                 this.applyAccessibilityStylesToPopup(profile);
                 this.showStatus('Profile saved: ' + profile, 'success');
@@ -729,7 +739,7 @@ if (readingLineToggle) {
     }
 
 async analyzeImageWithBackend(imageDataUrl, query) {
-    const response = await fetch(`${BACKEND_URL}/api/multimodal/analyze-image`, {
+    const response = await fetch(`https://ai-learn-2i3f.onrender.com//api/multimodal/analyze-image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -753,11 +763,30 @@ async analyzeImageWithBackend(imageDataUrl, query) {
     return data.analysis;
 }
 
-    // === AUTH METHODS (UNCHANGED) ===
+    // === AUTH METHODS (UPDATED) ===
     getAuthCredentials() {
         const email = document.getElementById('auth-email').value.trim();
         const password = document.getElementById('auth-password').value.trim();
         return { email, password };
+    }
+
+    async handleGuestLogin() {
+        userId = 'anonymous';
+        currentProfile = null; // Ensure guest starts with no active profile
+        accessibilityMode = false;
+
+        // Use 'anonymous' as the user ID for guest mode. This bypasses backend registration/login.
+        await chrome.storage.local.set({ 
+            userId: 'anonymous', 
+            accessibilityProfile: null // No profile saved for guest
+        });
+
+        document.getElementById('accessibility-mode-toggle').checked = false;
+        this.updateCurrentProfile();
+        this.applyAccessibilityStylesToPopup(null);
+        
+        this.showMainContent();
+        this.showStatus('Welcome, Guest! Functionality is limited. Log in to save preferences.', 'info');
     }
 
     async handleAuth(action) {
@@ -776,7 +805,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         messageEl.textContent = 'Processing...';
 
         try {
-            const response = await fetch(`${BACKEND_URL}/api/auth/${endpoint}`, {
+            const response = await fetch(`https://ai-learn-2i3f.onrender.com//api/auth/${endpoint}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
@@ -787,7 +816,8 @@ async analyzeImageWithBackend(imageDataUrl, query) {
                 userId = data.userId; 
                 await chrome.storage.local.set({ userId: userId });
                 
-                await this.loadProfileFromBackend(userId); 
+                // CRITICAL PRIVACY FIX: loadProfileFromBackend will now only check local storage
+                this.loadProfileFromBackend(userId); 
                 
                 this.showMainContent();
                 document.getElementById('profile-section').style.display = 'none';
@@ -844,7 +874,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         try {
             this.showStatus('Loading insights...', 'success');
             
-            const response = await fetch(`${BACKEND_URL}/api/analytics/insights/${userId}`);
+            const response = await fetch(`https://ai-learn-2i3f.onrender.com//api/analytics/insights/${userId}`);
             const data = await response.json();
             
             if (data.success) {
@@ -864,7 +894,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         }
     }
 
-    // === PROFILE MANAGEMENT (UNCHANGED) ===
+    // === PROFILE MANAGEMENT (UPDATED) ===
     updateCurrentProfile() {
         const profileEl = document.getElementById('current-profile');
         if (currentProfile) {
@@ -872,7 +902,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
                 'dyslexia': 'Dyslexia Support',
                 'adhd': 'ADHD Focus',
                 'visual_impairment': 'Visual Support',
-                'non_native': 'Language Learner'
+                // Removed: 'non_native': 'Language Learner'
             };
             profileEl.textContent = `Active: ${names[currentProfile]}`;
             profileEl.style.display = 'block';
@@ -945,25 +975,41 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         }
     }
 
+    // CRITICAL PRIVACY FIX: Retained for profile persistence in local storage only
     async saveProfileToBackend(profile) {
-        try {
-            // Save the profile name only, or null if accessibility is off
-            const profileData = profile ? { mode: profile, timestamp: new Date().toISOString() } : { mode: null };
-            
-            await fetch(`${BACKEND_URL}/api/accessibility/profile/save`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    userId,
-                    profile: profileData
-                })
-            });
-        } catch (error) {
-            console.error('Failed to save profile:', error);
-        }
+        // This function is now responsible only for setting local storage.
+        await chrome.storage.local.set({ accessibilityProfile: profile });
     }
 
-    // === LOGGING/ANALYTICS (UPDATED) (UNCHANGED) ===
+    // CRITICAL PRIVACY FIX: loadProfileFromBackend now only checks local storage
+    async loadProfileFromBackend(user_id) {
+        const result = await chrome.storage.local.get(['accessibilityProfile']);
+
+        if (result.accessibilityProfile) {
+            currentProfile = result.accessibilityProfile;
+            accessibilityMode = true;
+            document.getElementById('accessibility-mode-toggle').checked = true;
+            this.updateCurrentProfile();
+            // User feedback changed from 'cloud' to 'local storage'
+            this.showStatus('Profile loaded from local storage.', 'info');
+        } else {
+            currentProfile = null;
+            accessibilityMode = false;
+        }
+        
+        // Apply styling based on whatever was found/defaulted
+        if (accessibilityMode) {
+            this.applyAccessibilityStylesToPopup(currentProfile);
+        } else {
+            this.applyAccessibilityStylesToPopup(null); 
+        }
+
+        // NOTE: The name loadProfileFromBackend is retained to minimize code refactoring, 
+        // but its functionality is local-only.
+    }
+
+
+    // === LOGGING/ANALYTICS (UNCHANGED) ===
     async logFeatureUsage(feature) {
         try {
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -978,7 +1024,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
                 }
             }
 
-            const response = await fetch(`${BACKEND_URL}/api/analytics/session`, {
+            const response = await fetch(`https://ai-learn-2i3f.onrender.com//api/analytics/session`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1074,34 +1120,6 @@ async analyzeImageWithBackend(imageDataUrl, query) {
             setTimeout(() => {
                 statusElement.textContent = '';
             }, 3000);
-        }
-    }
-
-    async loadProfileFromBackend(user_id) {
-        try {
-            const response = await fetch(`${BACKEND_URL}/api/accessibility/profile/get/${user_id}`);
-            const data = await response.json();
-            
-            if (data.success && data.profile && data.profile.mode) {
-                currentProfile = data.profile.mode;
-                accessibilityMode = true;
-                await chrome.storage.local.set({ accessibilityProfile: currentProfile });
-                document.getElementById('accessibility-mode-toggle').checked = true;
-                this.updateCurrentProfile();
-                this.showStatus('Profile loaded from cloud.', 'info');
-            } else {
-                currentProfile = null;
-                accessibilityMode = false;
-            }
-            
-            if (accessibilityMode) {
-                this.applyAccessibilityStylesToPopup(currentProfile);
-            } else {
-                this.applyAccessibilityStylesToPopup(null); 
-            }
-        } catch (error) {
-            console.error('Failed to load profile from backend:', error);
-            this.applyAccessibilityStylesToPopup(null); 
         }
     }
 
@@ -1697,60 +1715,51 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         const statusEl = document.getElementById('voice-reader-status');
         if (statusEl) statusEl.textContent = '';
         
-        // 🐛 FIX 9: Log for Voice Reader initiation
+        // Log feature usage
         this.logFeatureUsage('VOICE_READER'); 
         console.log(`🔊 [VOICE_READER] Initiating reading attempt and logging usage.`); 
 
-
-        // If no preview text is loaded yet, start reading a quick snippet (selected text or title) immediately
-        if (!textToRead || textToRead === 'No text available. Please select text or ensure the page has readable content.') {
-            // Try to get selected text quickly, otherwise use document title as a quick-start
-            this.showStatus('🔊 Preparing text... starting immediately with a quick snippet.', 'info');
-            if (statusEl) statusEl.textContent = 'Preparing: starting with a short preview...';
-
-            try {
-                const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-                if (tab && tab.id) {
-                    // Try get selected text first (fast)
-                    chrome.tabs.sendMessage(tab.id, { type: 'GET_SELECTED_TEXT' }, (selResp) => {
-                        const sel = selResp?.text?.trim();
-                        const quickText = sel && sel.length > 20 ? sel : (tab.title || 'Reading page content');
-                        // Start quick utterance
-                        this._startUtterance(quickText, { speed, pitch, volume });
-                    });
-
-                    // Meanwhile, fetch full page text and when received, speak it (append)
-                    chrome.tabs.sendMessage(tab.id, { type: 'GET_PAGE_TEXT' }, (pageResp) => {
-                        const full = pageResp?.text?.trim();
-                        if (full && full.length > 0) {
-                            // If currently speaking a quick snippet, let it finish then speak full text
-                            // Or immediately queue the full text as the next utterance
-                            this._startUtterance(full, { speed, pitch, volume }, { queue: true });
-                            if (statusEl) statusEl.textContent = 'Reading full page...';
-                        } else {
-                            if (statusEl) statusEl.textContent = 'No page text available.';
-                        }
-                    });
-                } else {
-                    // fallback: speak document title
-                    this._startUtterance(document.title || 'Reading content', { speed, pitch, volume });
-                }
-            } catch (err) {
-                this.showStatus('Error preparing text: ' + (err.message || err), 'error');
+        // 1. FIX: Ensure content is loaded, especially for 'Whole Page' if preview is empty
+        if (!textToRead || textToRead.includes('No text available')) {
+            const selectedBtn = document.getElementById('voice-selected-btn');
+            const pageBtn = document.getElementById('voice-page-btn');
+            let source = 'selected';
+            if (pageBtn && pageBtn.classList.contains('active')) {
+                source = 'page';
             }
-
+            // Force a content load/refresh. This is crucial for 'Whole Page' to read the full content.
+            await this.switchTextSource('voice-reader', source);
+            textToRead = previewElement?.textContent.trim() || '';
+        }
+        
+        if (!textToRead || textToRead.includes('No text available')) {
+            this.showStatus('No readable content found.', 'error');
+            if (statusEl) statusEl.textContent = 'No text to read.';
             return;
         }
 
-        // If preview text exists, start reading it immediately
-        if (textToRead && textToRead.length > 0) {
-            this.showStatus('🔊 Starting voice reading...', 'info');
-            if (statusEl) statusEl.textContent = 'Reading...';
-            try {
-                this._startUtterance(textToRead, { speed, pitch, volume });
-            } catch (error) {
-                this.showStatus('Error: ' + error.message, 'error');
-            }
+        // 2. Language Detection and Voice Selection Disabling
+        let detectedLangTag = this._detectLanguage(textToRead);
+        const isEnglish = detectedLangTag && detectedLangTag.startsWith('en');
+        const voiceSelect = document.getElementById('voice-select');
+        
+        if (!isEnglish) {
+            voiceSelect.value = 'auto'; // Force to auto
+            voiceSelect.disabled = true; // Disable voice selection
+            const langName = detectedLangTag.split('-')[0];
+            this.showStatus(`Detected language: ${langName}. Voice selection disabled.`, 'warning');
+            if (statusEl) statusEl.textContent = `Reading in ${langName} (Auto Voice)...`;
+        } else {
+            voiceSelect.disabled = false; // Enable if English
+        }
+
+        // 3. Start reading with the now-available text and adjusted voice settings
+        this.showStatus('🔊 Starting voice reading...', 'info');
+        if (statusEl) statusEl.textContent = 'Reading...';
+        try {
+            this._startUtterance(textToRead, { speed, pitch, volume });
+        } catch (error) {
+            this.showStatus('Error: ' + error.message, 'error');
         }
     }
 
@@ -1779,11 +1788,31 @@ async analyzeImageWithBackend(imageDataUrl, query) {
             utterance.volume = volume;
 
             const voiceSelect = document.getElementById('voice-select');
-            if (voiceSelect && voiceSelect.value !== 'auto') {
+            
+            const selectedVoiceName = voiceSelect ? voiceSelect.value : 'auto';
+            
+            if (selectedVoiceName === 'auto') {
+                // When 'auto' is selected, rely on the browser's engine for best voice/language.
+                // Use language detection helper to give the browser a strong hint for quick start/accurate reading.
+                const detectedLang = this._detectLanguage(text); 
+                utterance.lang = detectedLang; 
+                utterance.voice = null; // Let the browser choose the best voice for the detected lang
+            } else {
+                // If a specific voice is selected (must be English):
                 const voices = speechSynthesis.getVoices();
-                const selectedVoice = voices.find(v => v.name === voiceSelect.value);
-                if (selectedVoice) utterance.voice = selectedVoice;
+                const selectedVoice = voices.find(v => v.name === selectedVoiceName);
+                if (selectedVoice) {
+                    utterance.voice = selectedVoice;
+                    // Force lang to the voice's language (English)
+                    utterance.lang = selectedVoice.lang || 'en-US'; 
+                } else {
+                    // Fallback to auto/detected lang if the selected voice is unavailable
+                    const detectedLang = this._detectLanguage(text);
+                    utterance.voice = null;
+                    utterance.lang = detectedLang;
+                }
             }
+            // --- END NEW LOGIC ---
 
             utterance.onstart = () => {
                 this.showStatus('🔊 Reading aloud...', 'success');
@@ -1796,7 +1825,6 @@ async analyzeImageWithBackend(imageDataUrl, query) {
             };
 
             utterance.onend = () => {
-                // If queued utterances remain, speechSynthesis will continue; otherwise restore UI
                 if (!speechSynthesis.speaking) {
                     this.showStatus('✅ Reading completed.', 'success');
                     const pauseBtn = document.getElementById('voice-pause-btn');
@@ -1820,13 +1848,13 @@ async analyzeImageWithBackend(imageDataUrl, query) {
             };
 
             if (options.queue) {
-                // Add slight delay before enqueuing to ensure ordering
                 setTimeout(() => speechSynthesis.speak(utterance), 200);
             } else {
+                // Ensure quick start by cancelling previous speech
+                speechSynthesis.cancel(); 
                 speechSynthesis.speak(utterance);
             }
 
-            // Keep reference to current utterance
             this.currentUtterance = utterance;
         } catch (err) {
             console.error('Failed to start utterance:', err);
@@ -2087,7 +2115,8 @@ async analyzeImageWithBackend(imageDataUrl, query) {
             <div class="response-content">${formattedResponse}</div>
         `;
         ttsManager.attachListeners(response, isOCR);
-        
+
+        // **SCROLL TO RESPONSE**
         this._scrollToResponse('simplify-response');
     }
 
@@ -2279,12 +2308,26 @@ async analyzeImageWithBackend(imageDataUrl, query) {
     initializeVoiceReader() {
         // Populate voice options
         const voiceSelect = document.getElementById('voice-select');
-        voiceSelect.innerHTML = '<option value="auto">Auto (Best Available)</option>';
         
-        // Load available voices
+        // Load available voices and filter to English
         const loadVoices = () => {
             const voices = speechSynthesis.getVoices();
-            voices.forEach(voice => {
+            
+            // Clear previous options except 'Auto'
+            // The default 'auto' option is maintained in sidepanel.html, so we only need to append.
+            voiceSelect.innerHTML = '<option value="auto">Auto (Best Available)</option>';
+            
+            // Filter voices to English (starts with 'en') as requested
+            const englishVoices = voices.filter(voice => voice.lang.startsWith('en'));
+            
+            // Sort English voices: Google/High-Quality first, then others
+            englishVoices.sort((a, b) => {
+                if (a.name.includes('Google') && !b.name.includes('Google')) return -1;
+                if (!a.name.includes('Google') && b.name.includes('Google')) return 1;
+                return a.name.localeCompare(b.name);
+            });
+
+            englishVoices.forEach(voice => {
                 const option = document.createElement('option');
                 option.value = voice.name;
                 option.textContent = `${voice.name} (${voice.lang})`;
@@ -2292,9 +2335,11 @@ async analyzeImageWithBackend(imageDataUrl, query) {
             });
         };
         
-        // Load voices immediately and when they become available
+        // Load voices immediately and whenever they change (fixes the "not reading" issue if voices load late)
         loadVoices();
-        speechSynthesis.onvoiceschanged = loadVoices;
+        if (speechSynthesis.onvoiceschanged !== loadVoices) {
+            speechSynthesis.onvoiceschanged = loadVoices;
+        }
     }
 
     updateVoiceControl(type, value) {
@@ -2342,7 +2387,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         this._scrollToResponse('insights-interface');
         
         try {
-            const response = await fetch(`${BACKEND_URL}/api/analytics/insights/${userId}`);
+            const response = await fetch(`https://ai-learn-2i3f.onrender.com//api/analytics/insights/${userId}`);
             const data = await response.json();
             
             if (data.success) {
@@ -2624,7 +2669,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const form = new FormData();
         form.append('file', file);
-        const resp = await fetch(`${BACKEND_URL}/upload`, {
+        const resp = await fetch(`https://ai-learn-2i3f.onrender.com//upload`, {
           method: 'POST',
           body: form
         });
@@ -2682,7 +2727,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const abortController = new AbortController();
         currentRequest = abortController;
         
-        const resp = await fetch(`${BACKEND_URL}/process-document`, {
+        const resp = await fetch(`https://ai-learn-2i3f.onrender.com//process-document`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 

@@ -15,7 +15,7 @@ let showReadingLine = true; // Toggle for reading line feature
 let simplifiedVoiceUtterance = null; 
 
 // The backend URL is assumed to be defined here or globally available
-const BACKEND_URL = 'YOUR_BACKEND_URL'; 
+const BACKEND_URL = 'https://ai-learn-2i3f.onrender.com/'; 
 
 // Define the standard language list for parity
 const standardLanguageOptions = [
@@ -427,26 +427,7 @@ function replacePageWithSimplified(simplifiedText, level) {
     simplifiedWrapper.appendChild(header);
     simplifiedWrapper.appendChild(content);
     
-    // Add the controls again at the bottom for better visibility (as shown in the image)
-    const bottomControls = document.createElement('div');
-    bottomControls.style.cssText = 'margin-top: 25px; padding-top: 15px; border-top: 1px solid #f0f0f0; text-align: center;';
-    
-    const restoreBtnBottom = document.createElement('button');
-    restoreBtnBottom.textContent = '❌ Restore Original Page';
-    restoreBtnBottom.id = 'simplified-restore-btn-bottom-copy';
-    restoreBtnBottom.style.cssText = 'padding: 10px 20px; background: #f44336; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; box-shadow: 0 4px 12px rgba(244, 67, 54, 0.3);';
-    restoreBtnBottom.onclick = function() { restoreOriginalContent(); };
-    
-    // Now add the voice button next to the restore button at the bottom
-    const voiceBtnBottom = document.createElement('button');
-    voiceBtnBottom.id = 'simplified-voice-btn-bottom-copy';
-    voiceBtnBottom.innerHTML = '🔊 Read Simplified Text';
-    voiceBtnBottom.title = 'Read aloud';
-    voiceBtnBottom.style.cssText = 'padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; margin-right: 10px; box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);';
-    
-    bottomControls.appendChild(voiceBtnBottom);
-    bottomControls.appendChild(restoreBtnBottom);
-    simplifiedWrapper.appendChild(bottomControls);
+    // REMOVED: The section that created the duplicated bottom controls
 
 
     // Clear container and append the new wrapper
@@ -467,7 +448,7 @@ function replacePageWithSimplified(simplifiedText, level) {
 // NEW: Function to handle Text-to-Speech logic for the simplified content
 function setupSimplifiedVoiceReader(text) {
     const voiceBtnTop = document.getElementById('simplified-voice-btn');
-    const voiceBtnBottom = document.getElementById('simplified-voice-btn-bottom-copy');
+    // Note: voiceBtnBottom no longer exists in the DOM, so we only target the top button.
     
     if (!voiceBtnTop || !window.speechSynthesis) return;
 
@@ -480,12 +461,11 @@ function setupSimplifiedVoiceReader(text) {
     
     const updateButtons = (state) => {
         const [text, background, reading, paused] = state;
-        [voiceBtnTop, voiceBtnBottom].forEach(btn => {
-            if (btn) {
-                btn.innerHTML = text;
-                btn.style.background = background;
-            }
-        });
+        // Only update the existing top button
+        if (voiceBtnTop) {
+            voiceBtnTop.innerHTML = text;
+            voiceBtnTop.style.background = background;
+        }
         isReading = reading;
         isPaused = paused;
     };
@@ -546,21 +526,18 @@ function setupSimplifiedVoiceReader(text) {
         }
     };
 
-    [voiceBtnTop, voiceBtnBottom].forEach(btn => {
-        if (btn) {
-            btn.addEventListener('click', handlePauseResume);
-        }
-    });
+    // Attach listener only to the top button
+    if (voiceBtnTop) {
+        voiceBtnTop.addEventListener('click', handlePauseResume);
+    }
 
     // Add an event listener to the page restoration buttons to ensure TTS is stopped externally
     const restoreBtnTop = document.getElementById('simplified-restore-btn');
-    const restoreBtnBottom = document.getElementById('simplified-restore-btn-bottom-copy');
+    // Note: simplified-restore-btn-bottom-copy no longer exists
     
-    [restoreBtnTop, restoreBtnBottom].forEach(btn => {
-        if(btn) {
-            btn.addEventListener('click', handleStop);
-        }
-    });
+    if(restoreBtnTop) {
+        restoreBtnTop.addEventListener('click', handleStop);
+    }
     
     // Optional: Add global listener for escape key to stop TTS (Good Accessibility practice)
     document.addEventListener('keydown', (e) => {
@@ -799,8 +776,6 @@ function buildAccessibilityPrompt(profile) {
             return basePrompt + " Summarize key information using bullet points or numbered lists. Be direct and avoid unnecessary jargon to maintain user focus (ADHD profile).";
         case 'visual_impairment':
             return basePrompt + " Respond with highly structured, clear formatting using markdown headers and lists for easy screen-reader parsing (Visual Impairment profile).";
-        case 'non_native':
-            return basePrompt + " Use very simple English, explain complex terms, and translate key concepts if possible (Non-Native Speaker profile).";
         default:
             return basePrompt;
     }
@@ -888,7 +863,7 @@ async function callAI(prompt, options = {}) {
 
     // Helper for making the actual fetch call (used for both hybrid and forced cloud)
     const performFetch = async (forceCloud) => {
-        let endpoint = isSimplifyCall ? `${BACKEND_URL}/api/hybrid/simplify` : `${BACKEND_URL}/api/hybrid/prompt`;
+        let endpoint = isSimplifyCall ? `https://ai-learn-2i3f.onrender.com//api/hybrid/simplify` : `https://ai-learn-2i3f.onrender.com//api/hybrid/prompt`;
         console.log(`📡 [Cloud] Fetching from backend (Cloud forced: ${forceCloud})...`);
 
         const requestBody = isSimplifyCall ? {
@@ -1187,7 +1162,7 @@ async function processOCRWithBackend(imageDataUrl, targetLanguage) {
     console.log('🌐 Calling backend OCR API...');
     console.log('Image size:', imageDataUrl.length, 'bytes');
     
-    const response = await fetch(`${BACKEND_URL}/api/multimodal/ocr-translate`, {
+    const response = await fetch(`https://ai-learn-2i3f.onrender.com//api/multimodal/ocr-translate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1327,7 +1302,7 @@ async function captureAndAnalyzeScreenshot() {
 }
 
 async function analyzeImageWithBackend(imageDataUrl, query) {
-    const response = await fetch(`${BACKEND_URL}/api/multimodal/analyze-image`, {
+    const response = await fetch(`https://ai-learn-2i3f.onrender.com//api/multimodal/analyze-image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2210,7 +2185,6 @@ function applyProfileStyles(profileName) {
         'accessibility-dyslexia',
         'accessibility-adhd',
         'accessibility-visual_impairment',
-        'accessibility-non_native',
         'chromeai-adhd-enabled'
     );
     // 2. Remove the reading line if present
