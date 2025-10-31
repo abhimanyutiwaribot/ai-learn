@@ -1,4 +1,4 @@
-const BACKEND_URL = "https://ai-learn-2i3f.onrender.com/"
+const BACKEND_URL = "http://localhost:5000"
 
 window.profileSync = {
     async saveProfile(userId, profile) {

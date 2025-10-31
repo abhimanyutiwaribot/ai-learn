@@ -1,4 +1,4 @@
-const BACKEND_URL = 'https://ai-learn-2i3f.onrender.com/';
+const BACKEND_URL = 'http://localhost:5000';
 let currentProfile = null;
 let accessibilityMode = false;
 let userId = null; 
@@ -12,7 +12,11 @@ const standardLanguageOptions = [
     { value: 'German', label: 'German (Deutsch)' },
     { value: 'Italian', label: 'Italian (Italiano)' },
     { value: 'Portuguese', label: 'Portuguese (Português)' },
-    // Removed: Chinese, Japanese, Korean, Hindi, Arabic
+    { value: 'Chinese', label: 'Chinese (中文)' }, 
+    { value: 'Japanese', label: 'Japanese (日本語)' }, 
+    { value: 'Korean', label: 'Korean (한국어)' }, 
+    { value: 'Hindi', label: 'Hindi (हिन्दी)' }, 
+    { value: 'Arabic', label: 'Arabic (العربية)' } 
 ];
 
 
@@ -267,10 +271,8 @@ class ChromeAISidePanel {
         // Hide profile selection initially
         document.getElementById('profile-section').style.display = accessibilityMode ? 'block' : 'none';
         
-        // Load Quick Settings
-        if (result.settings) {
-            this.applySettings(result.settings);
-        }
+        // REMOVED: Unused this.applySettings(result.settings) logic
+
         // Load Reading Line preference (add this at the end of the method)
         const readingLineToggle = document.getElementById('reading-line-toggle');
         if (readingLineToggle) {
@@ -381,11 +383,17 @@ if (readingLineToggle) {
         // --- Profile Listeners ---
         document.querySelectorAll('.profile-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
-                if (!userId || userId === 'anonymous') {
-                    this.showStatus('Please log in to save your profile.', 'warning');
-                    return;
-                }
                 const profile = btn.dataset.profile;
+                const isGuest = !userId || userId === 'anonymous'; // Check for guest status
+
+                // --- MODIFIED LOGIC START ---
+                if (isGuest) {
+                    // Allow the profile to be applied, but show the warning for guest users.
+                    this.showStatus('Profile activated temporarily. Log in for personalizes insights.', 'warning');
+                    // The original 'return;' statement is removed to allow profile activation to proceed.
+                }
+                // --- MODIFIED LOGIC END ---
+
                 currentProfile = profile;
                 
                 document.querySelectorAll('.profile-btn').forEach(b => b.classList.remove('active'));
@@ -393,12 +401,18 @@ if (readingLineToggle) {
                 
                 this.updateCurrentProfile();
                 this.updateReadingLineToggle(); // Update reading line availability
+                
+                // This saves the profile to local storage (for persistence across sidepanel re-opens) for all users.
                 await chrome.storage.local.set({ accessibilityProfile: profile });
                 // CRITICAL PRIVACY FIX: Removed backend save call
                 this.saveProfileToBackend(profile); 
                 
                 this.applyAccessibilityStylesToPopup(profile);
-                this.showStatus('Profile saved: ' + profile, 'success');
+                
+                // Only show the success message for logged-in users
+                if (!isGuest) {
+                    this.showStatus('Profile saved: ' + profile, 'success');
+                }
             });
         });
         
@@ -720,26 +734,36 @@ if (readingLineToggle) {
         
         const isOCR = false;
         const ttsManager = new ResponseVoiceReader('screenshot-response');
-        
+
+        // Store the raw response text for the event listener
+        const rawResponseText = analysis;
+
         responseContainer.style.display = 'block';
         responseContainer.innerHTML = `
             <div class="response-header">
                 <h4>🔍 AI Analysis</h4>
                 <div class="response-actions">
                     ${ttsManager.renderControl()}
-                    <button class="copy-btn" onclick="navigator.clipboard.writeText('${analysis.replace(/'/g, "\\'")}')">📋 Copy</button>
+                    <button class="copy-btn" id="screenshot-copy-btn">📋 Copy</button>
                 </div>
             </div>
             <div class="response-content">${formattedAnalysis}</div>
         `;
         ttsManager.attachListeners(analysis, isOCR);
         
+        // Use an event listener to copy the stored raw text
+        document.getElementById('screenshot-copy-btn').addEventListener('click', () => {
+            navigator.clipboard.writeText(rawResponseText)
+                .then(() => sidePanelInstance.showStatus('✓ Copied to clipboard', 'success'))
+                .catch(e => sidePanelInstance.showStatus('❌ Failed to copy: ' + e.message, 'error'));
+        });
+        
         // **SCROLL TO RESPONSE**
         this._scrollToResponse('screenshot-response');
     }
 
 async analyzeImageWithBackend(imageDataUrl, query) {
-    const response = await fetch(`https://ai-learn-2i3f.onrender.com//api/multimodal/analyze-image`, {
+    const response = await fetch(`http://localhost:5000/api/multimodal/analyze-image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -785,6 +809,13 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         this.updateCurrentProfile();
         this.applyAccessibilityStylesToPopup(null);
         
+        // --- START OF GUEST-SPECIFIC FIX ---
+        // 1. Ensure Accessibility Mode is OFF
+        accessibilityMode = false;
+        // 2. Explicitly hide the profile selection section
+        document.getElementById('profile-section').style.display = 'none';
+        // --- END OF GUEST-SPECIFIC FIX ---
+
         this.showMainContent();
         this.showStatus('Welcome, Guest! Functionality is limited. Log in to save preferences.', 'info');
     }
@@ -805,7 +836,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         messageEl.textContent = 'Processing...';
 
         try {
-            const response = await fetch(`https://ai-learn-2i3f.onrender.com//api/auth/${endpoint}`, {
+            const response = await fetch(`http://localhost:5000/api/auth/${endpoint}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
@@ -874,7 +905,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         try {
             this.showStatus('Loading insights...', 'success');
             
-            const response = await fetch(`https://ai-learn-2i3f.onrender.com//api/analytics/insights/${userId}`);
+            const response = await fetch(`http://localhost:5000/api/analytics/insights/${userId}`);
             const data = await response.json();
             
             if (data.success) {
@@ -1024,7 +1055,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
                 }
             }
 
-            const response = await fetch(`https://ai-learn-2i3f.onrender.com//api/analytics/session`, {
+            const response = await fetch(`http://localhost:5000/api/analytics/session`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1043,67 +1074,6 @@ async analyzeImageWithBackend(imageDataUrl, query) {
 
         } catch (error) {
             console.error(`❌ [Analytics] Failed to log usage for ${feature}:`, error);
-        }
-    }
-
-    // === SETTINGS MANAGEMENT (UNCHANGED) ===
-    applySettings(settings) {
-        if (settings.dyslexiaFont) document.getElementById('dyslexia-font').checked = true;
-        if (settings.highContrast) document.getElementById('high-contrast').checked = true;
-        if (settings.reduceMotion) document.getElementById('reduce-motion').checked = true;
-        if (settings.textSize) {
-            document.getElementById('text-size').value = settings.textSize;
-            document.getElementById('text-size-value').textContent = settings.textSize + 'px';
-        }
-    }
-
-    async updateSettings(newSettings) {
-        const result = await chrome.storage.local.get(['settings']);
-        const settings = result.settings || {};
-        Object.assign(settings, newSettings);
-        await chrome.storage.local.set({ settings });
-        
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            func: this.applySettingsToContent,
-            args: [settings]
-        });
-    }
-
-    applySettingsToContent(settings) {
-        // Reset all styles first
-        document.body.style.fontFamily = '';
-        document.body.style.fontSize = '';
-        document.body.style.filter = '';
-        document.body.style.animation = '';
-        document.body.style.transition = '';
-        
-        // Apply dyslexia-friendly font
-        if (settings.dyslexiaFont) {
-            document.body.style.fontFamily = 'OpenDyslexic, "Comic Sans MS", sans-serif';
-        }
-        
-        // Apply text size
-        if (settings.textSize) {
-            document.body.style.fontSize = settings.textSize + 'px';
-        }
-        
-        // Apply high contrast
-        if (settings.highContrast) {
-            document.body.style.filter = 'contrast(1.5)';
-        }
-        
-        // Apply reduce motion
-        if (settings.reduceMotion) {
-            document.body.style.animation = 'none';
-            document.body.style.transition = 'none';
-            // Also disable animations on all elements
-            const allElements = document.querySelectorAll('*');
-            allElements.forEach(el => {
-                el.style.animation = 'none';
-                el.style.transition = 'none';
-            });
         }
     }
 
@@ -1286,20 +1256,29 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         const isOCR = false;
         const ttsManager = new ResponseVoiceReader('prompt-response');
 
+        // Store the raw response text for the event listener
+        const rawResponseText = response;
+
         responseContainer.style.display = 'block';
         responseContainer.innerHTML = `
             <div class="response-header">
                 <h4>🤖 AI Response</h4>
                 <div class="response-actions">
                     ${ttsManager.renderControl()} 
-                    <button class="copy-btn" onclick="navigator.clipboard.writeText('${response.replace(/'/g, "\\'")}')">📋 Copy</button>
+                    <button class="copy-btn" id="prompt-copy-btn">📋 Copy</button>
                 </div>
             </div>
             <div class="response-content">${formattedResponse}</div>
         `;
         ttsManager.attachListeners(response, isOCR);
         
-        // **SCROLL TO RESPONSE**
+        // Use an event listener to copy the stored raw text
+        document.getElementById('prompt-copy-btn').addEventListener('click', () => {
+            navigator.clipboard.writeText(rawResponseText)
+                .then(() => sidePanelInstance.showStatus('✓ Copied to clipboard', 'success'))
+                .catch(e => sidePanelInstance.showStatus('❌ Failed to copy: ' + e.message, 'error'));
+        });
+        
         this._scrollToResponse('prompt-response');
     }
 
@@ -1360,18 +1339,28 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         const isOCR = false;
         const ttsManager = new ResponseVoiceReader('proofread-response');
 
+        // Store the raw response text for the event listener
+        const rawResponseText = response;
+
         responseContainer.style.display = 'block';
         responseContainer.innerHTML = `
             <div class="response-header">
                 <h4>🔤 Proofreading Results</h4>
                 <div class="response-actions">
                     ${ttsManager.renderControl()}
-                    <button class="copy-btn" onclick="navigator.clipboard.writeText('${response.replace(/'/g, "\\'")}')">📋 Copy</button>
+                    <button class="copy-btn" id="proofread-copy-btn">📋 Copy</button>
                 </div>
             </div>
             <div class="response-content">${formattedResponse}</div>
         `;
         ttsManager.attachListeners(response, isOCR);
+        
+        // Use an event listener to copy the stored raw text
+        document.getElementById('proofread-copy-btn').addEventListener('click', () => {
+            navigator.clipboard.writeText(rawResponseText)
+                .then(() => sidePanelInstance.showStatus('✓ Copied to clipboard', 'success'))
+                .catch(e => sidePanelInstance.showStatus('❌ Failed to copy: ' + e.message, 'error'));
+        });
         
         // **SCROLL TO RESPONSE**
         this._scrollToResponse('proofread-response');
@@ -1436,18 +1425,28 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         const isOCR = false;
         const ttsManager = new ResponseVoiceReader('summarize-response');
 
+        // Store the raw response text for the event listener
+        const rawResponseText = response;
+
         responseContainer.style.display = 'block';
         responseContainer.innerHTML = `
             <div class="response-header">
                 <h4>📄 Summary</h4>
                 <div class="response-actions">
                     ${ttsManager.renderControl()}
-                    <button class="copy-btn" onclick="navigator.clipboard.writeText('${response.replace(/'/g, "\\'")}')">📋 Copy</button>
+                    <button class="copy-btn" id="summarize-copy-btn">📋 Copy</button>
                 </div>
             </div>
             <div class="response-content">${formattedResponse}</div>
         `;
         ttsManager.attachListeners(response, isOCR);
+        
+        // Use an event listener to copy the stored raw text
+        document.getElementById('summarize-copy-btn').addEventListener('click', () => {
+            navigator.clipboard.writeText(rawResponseText)
+                .then(() => sidePanelInstance.showStatus('✓ Copied to clipboard', 'success'))
+                .catch(e => sidePanelInstance.showStatus('❌ Failed to copy: ' + e.message, 'error'));
+        });
         
         this._scrollToResponse('summarize-response');
     }
@@ -1511,20 +1510,29 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         const isOCR = false;
         const ttsManager = new ResponseVoiceReader('translate-response');
 
+        // Store the raw response text for the event listener
+        const rawResponseText = response;
+
         responseContainer.style.display = 'block';
         responseContainer.innerHTML = `
             <div class="response-header">
                 <h4>🌐 Translation</h4>
                 <div class="response-actions">
                     ${ttsManager.renderControl()}
-                    <button class="copy-btn" onclick="navigator.clipboard.writeText('${response.replace(/'/g, "\\'")}')">📋 Copy</button>
+                    <button class="copy-btn" id="translate-copy-btn">📋 Copy</button>
                 </div>
             </div>
             <div class="response-content">${formattedResponse}</div>
         `;
         ttsManager.attachListeners(response, isOCR);
-
-        // **SCROLL TO RESPONSE**
+        
+        // Use an event listener to copy the stored raw text
+        document.getElementById('translate-copy-btn').addEventListener('click', () => {
+            navigator.clipboard.writeText(rawResponseText)
+                .then(() => sidePanelInstance.showStatus('✓ Copied to clipboard', 'success'))
+                .catch(e => sidePanelInstance.showStatus('❌ Failed to copy: ' + e.message, 'error'));
+        });
+        
         this._scrollToResponse('translate-response');
     }
 
@@ -1586,18 +1594,28 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         const isOCR = false;
         const ttsManager = new ResponseVoiceReader('simplify-response');
 
+        // Store the raw response text for the event listener
+        const rawResponseText = response;
+
         responseContainer.style.display = 'block';
         responseContainer.innerHTML = `
             <div class="response-header">
                 <h4>📝 Simplified Text</h4>
                 <div class="response-actions">
                     ${ttsManager.renderControl()}
-                    <button class="copy-btn" onclick="navigator.clipboard.writeText('${response.replace(/'/g, "\\'")}')">📋 Copy</button>
+                    <button class="copy-btn" id="simplify-copy-btn">📋 Copy</button>
                 </div>
             </div>
             <div class="response-content">${formattedResponse}</div>
         `;
         ttsManager.attachListeners(response, isOCR);
+
+        // Use an event listener to copy the stored raw text
+        document.getElementById('simplify-copy-btn').addEventListener('click', () => {
+            navigator.clipboard.writeText(rawResponseText)
+                .then(() => sidePanelInstance.showStatus('✓ Copied to clipboard', 'success'))
+                .catch(e => sidePanelInstance.showStatus('❌ Failed to copy: ' + e.message, 'error'));
+        });
 
         // **SCROLL TO RESPONSE**
         this._scrollToResponse('simplify-response');
@@ -2026,7 +2044,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         document.getElementById('ocr-screenshot-btn').classList.remove('active');
     }
     
-    // === RESPONSE DISPLAY METHODS (UPDATED WITH SCROLL) ===
+    // === RESPONSE DISPLAY METHODS (UPDATED WITH SCROLL AND COPY FIX) ===
     showProofreadResponse(response) {
         const responseContainer = document.getElementById('proofread-response');
         const formattedResponse = this.formatAIResponse(response);
@@ -2034,19 +2052,30 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         const isOCR = false;
         const ttsManager = new ResponseVoiceReader('proofread-response');
 
+        // Store the raw response text for the event listener
+        const rawResponseText = response;
+
         responseContainer.style.display = 'block';
         responseContainer.innerHTML = `
             <div class="response-header">
                 <h4>🔤 Proofreading Results</h4>
                 <div class="response-actions">
                     ${ttsManager.renderControl()}
-                    <button class="copy-btn" onclick="navigator.clipboard.writeText('${response.replace(/'/g, "\\'")}')">📋 Copy</button>
+                    <button class="copy-btn" id="proofread-copy-btn">📋 Copy</button>
                 </div>
             </div>
             <div class="response-content">${formattedResponse}</div>
         `;
         ttsManager.attachListeners(response, isOCR);
         
+        // Use an event listener to copy the stored raw text
+        document.getElementById('proofread-copy-btn').addEventListener('click', () => {
+            navigator.clipboard.writeText(rawResponseText)
+                .then(() => sidePanelInstance.showStatus('✓ Copied to clipboard', 'success'))
+                .catch(e => sidePanelInstance.showStatus('❌ Failed to copy: ' + e.message, 'error'));
+        });
+        
+        // **SCROLL TO RESPONSE**
         this._scrollToResponse('proofread-response');
     }
 
@@ -2057,18 +2086,28 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         const isOCR = false;
         const ttsManager = new ResponseVoiceReader('summarize-response');
 
+        // Store the raw response text for the event listener
+        const rawResponseText = response;
+
         responseContainer.style.display = 'block';
         responseContainer.innerHTML = `
             <div class="response-header">
                 <h4>📄 Summary</h4>
                 <div class="response-actions">
                     ${ttsManager.renderControl()}
-                    <button class="copy-btn" onclick="navigator.clipboard.writeText('${response.replace(/'/g, "\\'")}')">📋 Copy</button>
+                    <button class="copy-btn" id="summarize-copy-btn">📋 Copy</button>
                 </div>
             </div>
             <div class="response-content">${formattedResponse}</div>
         `;
         ttsManager.attachListeners(response, isOCR);
+        
+        // Use an event listener to copy the stored raw text
+        document.getElementById('summarize-copy-btn').addEventListener('click', () => {
+            navigator.clipboard.writeText(rawResponseText)
+                .then(() => sidePanelInstance.showStatus('✓ Copied to clipboard', 'success'))
+                .catch(e => sidePanelInstance.showStatus('❌ Failed to copy: ' + e.message, 'error'));
+        });
         
         this._scrollToResponse('summarize-response');
     }
@@ -2080,18 +2119,28 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         const isOCR = false;
         const ttsManager = new ResponseVoiceReader('translate-response');
 
+        // Store the raw response text for the event listener
+        const rawResponseText = response;
+
         responseContainer.style.display = 'block';
         responseContainer.innerHTML = `
             <div class="response-header">
                 <h4>🌐 Translation</h4>
                 <div class="response-actions">
                     ${ttsManager.renderControl()}
-                    <button class="copy-btn" onclick="navigator.clipboard.writeText('${response.replace(/'/g, "\\'")}')">📋 Copy</button>
+                    <button class="copy-btn" id="translate-copy-btn">📋 Copy</button>
                 </div>
             </div>
             <div class="response-content">${formattedResponse}</div>
         `;
         ttsManager.attachListeners(response, isOCR);
+        
+        // Use an event listener to copy the stored raw text
+        document.getElementById('translate-copy-btn').addEventListener('click', () => {
+            navigator.clipboard.writeText(rawResponseText)
+                .then(() => sidePanelInstance.showStatus('✓ Copied to clipboard', 'success'))
+                .catch(e => sidePanelInstance.showStatus('❌ Failed to copy: ' + e.message, 'error'));
+        });
         
         this._scrollToResponse('translate-response');
     }
@@ -2103,18 +2152,28 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         const isOCR = false;
         const ttsManager = new ResponseVoiceReader('simplify-response');
 
+        // Store the raw response text for the event listener
+        const rawResponseText = response;
+
         responseContainer.style.display = 'block';
         responseContainer.innerHTML = `
             <div class="response-header">
                 <h4>📝 Simplified Text</h4>
                 <div class="response-actions">
                     ${ttsManager.renderControl()}
-                    <button class="copy-btn" onclick="navigator.clipboard.writeText('${response.replace(/'/g, "\\'")}')">📋 Copy</button>
+                    <button class="copy-btn" id="simplify-copy-btn">📋 Copy</button>
                 </div>
             </div>
             <div class="response-content">${formattedResponse}</div>
         `;
         ttsManager.attachListeners(response, isOCR);
+
+        // Use an event listener to copy the stored raw text
+        document.getElementById('simplify-copy-btn').addEventListener('click', () => {
+            navigator.clipboard.writeText(rawResponseText)
+                .then(() => sidePanelInstance.showStatus('✓ Copied to clipboard', 'success'))
+                .catch(e => sidePanelInstance.showStatus('❌ Failed to copy: ' + e.message, 'error'));
+        });
 
         // **SCROLL TO RESPONSE**
         this._scrollToResponse('simplify-response');
@@ -2150,8 +2209,10 @@ async analyzeImageWithBackend(imageDataUrl, query) {
     copyOCRResponse() {
         const responseContent = document.getElementById('ocr-response-content');
         if (responseContent) {
-            navigator.clipboard.writeText(responseContent.textContent);
-            this.showStatus('✓ OCR text copied to clipboard!', 'success');
+            // Note: This function is still needed as it is wired directly to the OCR copy button in initializeEventListeners
+            navigator.clipboard.writeText(responseContent.textContent)
+                .then(() => this.showStatus('✓ OCR text copied to clipboard!', 'success'))
+                .catch(e => this.showStatus('❌ Failed to copy: ' + e.message, 'error'));
         }
     }
 
@@ -2375,7 +2436,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         }
     }
 
-    // === INSIGHTS FUNCTIONALITY (UPDATED WITH SCROLL) ===
+    // === INSIGHTS FUNCTIONALITY (UPDATED WITH GUEST CHECK) ===
     async loadInsights() {
         const loadingDiv = document.getElementById('insights-loading');
         const contentDiv = document.getElementById('insights-content');
@@ -2386,8 +2447,26 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         // **SCROLL TO LOADER**
         this._scrollToResponse('insights-interface');
         
+        // --- START: NEW LOGIC FOR GUEST CHECK ---
+        if (!userId || userId === 'anonymous') {
+            loadingDiv.style.display = 'none';
+            contentDiv.style.display = 'block';
+            
+            const message = "Access to personalized insights is for registered users only. Please log in or register to view your learning patterns.";
+            
+            this.displayInsights(
+                message, 
+                0,
+                true 
+            );
+            
+            this.showStatus('Please log in or register to view insights.', 'warning');
+            return;
+        }
+        // --- END: NEW LOGIC FOR GUEST CHECK ---
+
         try {
-            const response = await fetch(`https://ai-learn-2i3f.onrender.com//api/analytics/insights/${userId}`);
+            const response = await fetch(`http://localhost:5000/api/analytics/insights/${userId}`);
             const data = await response.json();
             
             if (data.success) {
@@ -2406,12 +2485,22 @@ async analyzeImageWithBackend(imageDataUrl, query) {
         }
     }
 
-    displayInsights(insights, sessionCount) {
+    // Modified to handle the locked message
+    displayInsights(insights, sessionCount, isMessage = false) {
         const sessionInfo = document.getElementById('insights-session-info');
         const insightsText = document.getElementById('insights-text');
         
-        sessionInfo.textContent = `Sessions Analyzed: ${sessionCount}`;
-        insightsText.innerHTML = this.formatAIResponse(insights); // Format the response
+        if (isMessage) {
+            sessionInfo.textContent = 'Feature Locked (Login Required)';
+            insightsText.innerHTML = `<p style="text-align: center; font-style: italic; color: #ef4444; padding: 20px; border: 1px solid #ef4444; border-radius: 8px;">
+                <strong>🔐 Access Denied:</strong> ${insights}
+                <br><br>
+                
+            </p>`;
+        } else {
+            sessionInfo.textContent = `Sessions Analyzed: ${sessionCount}`;
+            insightsText.innerHTML = this.formatAIResponse(insights); // Format the response
+        }
     }
 
     showInsightsError(error) {
@@ -2507,7 +2596,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         // ... (PDF logic remains here, but since the original PDF logic was added to the DOMContentLoaded handler,
         // we'll leave it in the DOMContentLoaded for simplicity and instead ensure this file continues to
         // contain all the PDF logic, assuming it was meant to be refactored out.)
-        // Since the prompt is not asking for PDF changes, we assume the PDF logic remains bundled in the immediate execution.
         return false;
     }
 
@@ -2669,7 +2757,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const form = new FormData();
         form.append('file', file);
-        const resp = await fetch(`https://ai-learn-2i3f.onrender.com//upload`, {
+        const resp = await fetch(`http://localhost:5000/upload`, {
           method: 'POST',
           body: form
         });
@@ -2727,7 +2815,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const abortController = new AbortController();
         currentRequest = abortController;
         
-        const resp = await fetch(`https://ai-learn-2i3f.onrender.com//process-document`, {
+        const resp = await fetch(`http://localhost:5000/process-document`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 

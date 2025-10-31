@@ -3,7 +3,7 @@
 // ============================================
 
 // LOCAL TESTING
-const BACKEND_URL = 'https://ai-learn-2i3f.onrender.com/';
+const BACKEND_URL = 'http://localhost:5000';
 
 // PRODUCTION: Uncomment and update
 // const BACKEND_URL = 'https://YOUR-APP-NAME.onrender.com';
