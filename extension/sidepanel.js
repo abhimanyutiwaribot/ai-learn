@@ -81,60 +81,88 @@ class ResponseVoiceReader {
     // _handleMenuAction removed
 
     _prepareTTSData(responseText, isOCR) {
-        const segments = [];
-        if (isOCR) {
-            // Specialized OCR handling based on the structured output
-            const originalMatch = responseText.match(/ORIGINAL TEXT:\s*([\s\S]*?)\s*TRANSLATION:/i);
-            const translationMatch = responseText.match(/TRANSLATION:\s*([\s\S]*)/i);
+    const segments = [];
+    
+    if (isOCR) {
+        // Specialized OCR handling based on the structured output
+        const originalMatch = responseText.match(/ORIGINAL TEXT:\s*([\s\S]*?)\s*TRANSLATION:/i);
+        const translationMatch = responseText.match(/TRANSLATION:\s*([\s\S]*)/i);
 
-            if (originalMatch && originalMatch[1]) {
-                const originalText = originalMatch[1].trim();
-                const lang = this._detectLanguage(originalText) || 'en';
-                segments.push({ text: originalText, lang: lang, label: 'Original Text' });
-            }
-
-            if (translationMatch && translationMatch[1]) {
-                const translatedText = translationMatch[1].trim();
-                const lang = this._detectLanguage(translatedText) || 'en';
-                segments.push({ text: translatedText, lang: lang, label: 'Translation' });
-            }
-        } else {
-            // Standard handling: Single segment
-            const text = responseText.trim();
-            const lang = this._detectLanguage(text) || 'en';
-            segments.push({ text: text, lang: lang, label: 'Response' });
+        if (originalMatch && originalMatch[1]) {
+            const originalText = originalMatch[1].trim();
+            const lang = this._detectLanguage(originalText);
+            segments.push({ text: originalText, lang: lang, label: 'Original Text' });
         }
-        
-        return segments.filter(s => s.text.length > 0);
+
+        if (translationMatch && translationMatch[1]) {
+            const translatedText = translationMatch[1].trim();
+            const lang = this._detectLanguage(translatedText);
+            segments.push({ text: translatedText, lang: lang, label: 'Translation' });
+        }
+    } else {
+        // Standard handling: Single segment
+        const text = responseText.trim();
+        const lang = this._detectLanguage(text);
+        segments.push({ text: text, lang: lang, label: 'Response' });
     }
     
+    // Filter out empty segments and log for debugging
+    const validSegments = segments.filter(s => s.text.length > 0);
+    console.log("TTS Segments prepared:", validSegments);
+    
+    return validSegments;
+}
+    
     // FIX: Improved Language detection
-    _detectLanguage(text) {
-        // Only keep language detection for languages where the app explicitly offers translation (English, Spanish, French, German, Italian, Portuguese)
-        // Note: The logic below is slightly modified from the original to remove the foreign language character sets.
-        // I will revert it to simple generic detection for TTS purposes only.
-        
-        if (/[áéíóúñÁÉÍÓÚÑ¿¡]/.test(text)) return 'es'; 
-        if (/[àâéèêëîïôœùûüÿçÀÂÉÈÊËÎÏÔŒÙÛÜŸÇ]/.test(text)) return 'fr'; 
-        if (/[äöüßÄÖÜẞ]/.test(text)) return 'de'; 
-        // Default to English if no strong Latin hint
-        return 'en';
-    }
+    // FIX: Improved Language detection that supports all languages
+_detectLanguage(text) {
+    console.log("detect language call for text:", text.substring(0, 50));
+    
+    // Remove whitespace and check if text is meaningful
+    const cleanText = text.trim();
+    if (!cleanText || cleanText.length < 3) return 'en';
+    
+    // Character-based language detection for all supported languages
+    if (/[\u4e00-\u9fff]/.test(cleanText)) return 'zh'; // Chinese
+    if (/[\u3040-\u309f\u30a0-\u30ff]/.test(cleanText)) return 'ja'; // Japanese
+    if (/[\uac00-\ud7af]/.test(cleanText)) return 'ko'; // Korean
+    if (/[\u0900-\u097f]/.test(cleanText)) return 'hi'; // Hindi
+    if (/[\u0600-\u06ff]/.test(cleanText)) return 'ar'; // Arabic
+    
+    // Latin-based languages
+    if (/[áéíóúñÁÉÍÓÚÑ¿¡]/.test(cleanText)) return 'es'; // Spanish
+    if (/[àâéèêëîïôœùûüÿçÀÂÉÈÊËÎÏÔŒÙÛÜŸÇ]/.test(cleanText)) return 'fr'; // French
+    if (/[äöüßÄÖÜẞ]/.test(cleanText)) return 'de'; // German
+    if (/[àèéìíòóùúÀÈÉÌÍÒÓÙÚ]/.test(cleanText)) return 'it'; // Italian
+    if (/[àáâãçéêíóôõúÀÁÂÃÇÉÊÍÓÔÕÚ]/.test(cleanText)) return 'pt'; // Portuguese
+    
+    // Default to English
+    return 'en';
+}
 
     _getVoice(langCode) {
-        // Map language code to BCP-47 for voice matching
-        const langMap = {
-            'ko': 'ko', 'ja': 'ja', 'zh': 'zh', 'ar': 'ar', 'hi': 'hi', 
-            'es': 'es', 'fr': 'fr', 'de': 'de', 'en': 'en'
-        };
-        const targetLang = langMap[langCode] || 'en';
+    // Map language code to BCP-47 for voice matching
+    const langMap = {
+        'en': 'en', 'es': 'es', 'fr': 'fr', 'de': 'de', 'it': 'it', 'pt': 'pt',
+        'zh': 'zh-CN', 'ja': 'ja-JP', 'ko': 'ko-KR', 'hi': 'hi-IN', 'ar': 'ar'
+    };
+    
+    const targetLang = langMap[langCode] || 'en';
+    console.log("Looking for voice for language:", targetLang, "from code:", langCode);
 
-        const preferredVoice = this.voices.find(v => v.lang.startsWith(targetLang) && v.name.includes('Google')) ||
-                               this.voices.find(v => v.lang.startsWith(targetLang)) ||
-                               this.voices.find(v => v.default && v.lang.startsWith('en')) ||
-                               this.voices[0];
-        return preferredVoice;
-    }
+    // Get available voices
+    const voices = this.synth.getVoices();
+    
+    // Try to find the best matching voice
+    let preferredVoice = voices.find(v => v.lang.startsWith(targetLang) && v.name.includes('Google')) ||
+                        voices.find(v => v.lang.startsWith(targetLang) && v.name.includes('Microsoft')) ||
+                        voices.find(v => v.lang.startsWith(targetLang)) ||
+                        voices.find(v => v.default && v.lang.startsWith('en')) ||
+                        voices[0];
+    
+    console.log("Selected voice:", preferredVoice?.name, "for lang:", preferredVoice?.lang);
+    return preferredVoice;
+}
 
     _updateMainButton(action) {
         const btn = document.getElementById(`tts-container-${this.responseContainerId}`).querySelector('.tts-main-btn');
@@ -148,29 +176,45 @@ class ResponseVoiceReader {
     // _openMenu and _closeMenu removed
 
     _speakSegment() {
-        if (this.currentSegmentIndex >= this.ttsData.length) {
-            this.stop();
-            return;
-        }
-        
-        const segment = this.ttsData[this.currentSegmentIndex];
-        const utterance = new SpeechSynthesisUtterance(segment.text);
-        utterance.lang = segment.lang;
-        utterance.voice = this._getVoice(segment.lang);
-        
-        utterance.onstart = () => { this._updateMainButton('stop'); };
-        
-        utterance.onend = () => {
-            this.currentSegmentIndex++;
-            if (this.currentSegmentIndex < this.ttsData.length) {
-                setTimeout(() => this._speakSegment(), 500); 
-            } else { this.stop(); }
-        };
-        
-        utterance.onerror = (e) => { console.error('TTS Error:', e); this.stop(); };
-
-        this.synth.speak(utterance);
+    if (this.currentSegmentIndex >= this.ttsData.length) {
+        this.stop();
+        return;
     }
+    
+    const segment = this.ttsData[this.currentSegmentIndex];
+    console.log("Speaking segment:", {
+        index: this.currentSegmentIndex,
+        lang: segment.lang,
+        textLength: segment.text.length,
+        label: segment.label
+    });
+    
+    const utterance = new SpeechSynthesisUtterance(segment.text);
+    utterance.lang = segment.lang;
+    utterance.voice = this._getVoice(segment.lang);
+    
+    utterance.onstart = () => { 
+        console.log("TTS started for language:", segment.lang);
+        this._updateMainButton('stop'); 
+    };
+    
+    utterance.onend = () => {
+        console.log("TTS ended for segment:", this.currentSegmentIndex);
+        this.currentSegmentIndex++;
+        if (this.currentSegmentIndex < this.ttsData.length) {
+            setTimeout(() => this._speakSegment(), 500); 
+        } else { 
+            this.stop(); 
+        }
+    };
+    
+    utterance.onerror = (e) => { 
+        console.error('TTS Error:', e, 'for language:', segment.lang);
+        this.stop(); 
+    };
+
+    this.synth.speak(utterance);
+}
     
     start() {
         if (this.isReading || this.isPaused) { this.stop(); return; }
@@ -230,13 +274,25 @@ class ChromeAISidePanel {
 
     // Simple Language Detection Helper (Used when 'auto' is selected for fast, accurate reading)
     _detectLanguage(text) {
-        // Detect most common languages using simple patterns/character sets and return BCP-47 tag
-        if (/[áéíóúñÁÉÍÓÚÑ¿¡]/.test(text)) return 'es-ES'; 
-        if (/[àâéèêëîïôœùûüÿçÀÂÉÈÊËÎÏÔŒÙÛÜŸÇ]/.test(text)) return 'fr-FR'; 
-        if (/[äöüßÄÖÜẞ]/.test(text)) return 'de-DE'; 
-        // Default to English 
-        return 'en-US';
-    }
+    const cleanText = text.trim();
+    if (!cleanText || cleanText.length < 3) return 'en-US';
+    
+    // Character-based language detection
+    if (/[\u4e00-\u9fff]/.test(cleanText)) return 'zh-CN'; // Chinese
+    if (/[\u3040-\u309f\u30a0-\u30ff]/.test(cleanText)) return 'ja-JP'; // Japanese
+    if (/[\uac00-\ud7af]/.test(cleanText)) return 'ko-KR'; // Korean
+    if (/[\u0900-\u097f]/.test(cleanText)) return 'hi-IN'; // Hindi
+    if (/[\u0600-\u06ff]/.test(cleanText)) return 'ar-SA'; // Arabic
+    
+    // Latin-based languages
+    if (/[áéíóúñÁÉÍÓÚÑ¿¡]/.test(cleanText)) return 'es-ES';
+    if (/[àâéèêëîïôœùûüÿçÀÂÉÈÊËÎÏÔŒÙÛÜŸÇ]/.test(cleanText)) return 'fr-FR';
+    if (/[äöüßÄÖÜẞ]/.test(cleanText)) return 'de-DE';
+    if (/[àèéìíòóùúÀÈÉÌÍÒÓÙÚ]/.test(cleanText)) return 'it-IT';
+    if (/[àáâãçéêíóôõúÀÁÂÃÇÉÊÍÓÔÕÚ]/.test(cleanText)) return 'pt-PT';
+    
+    return 'en-US';
+}
 
     async loadUserSettings() {
         const result = await chrome.storage.local.get(['userId', 'accessibilityProfile', 'settings','showReadingLine']);
@@ -1396,7 +1452,7 @@ async analyzeImageWithBackend(imageDataUrl, query) {
 
         try {
             // REROUTE TO CONTENT SCRIPT'S CALLAI
-            const prompt = `Summarize the following document into a ${summaryLength} summary:\n\nDocument text: ${textToSummarize}`;
+            const prompt = `Summarize the following document making sure that the output should in the same language as the Document text into a ${summaryLength} summary:\n\nDocument text: ${textToSummarize}`;
             
             const response = await this.callContentScriptAI('SUMMARIZE', {
                 prompt: prompt,
