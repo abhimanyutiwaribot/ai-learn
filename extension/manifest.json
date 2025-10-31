@@ -3,7 +3,6 @@
   "name": "AI Learn - AI-Powered Smart Assistant",
   "version": "1.0.0",
   "description": "First voice reader that understands what it's reading. AI-powered accessibility for students with learning differences.",
- 
   "permissions": [ 
     "activeTab",
     "scripting",
@@ -44,7 +43,6 @@
         "utils/profile-sync.js",
         "accessibility-engine.js",
         "reading-assistant.js",
-        "voice-reader.js",
         "content.js"
       ],
       "css": [
@@ -53,15 +51,6 @@
       ],
       "run_at": "document_end",
       "all_frames": false
-    },
-    {
-      "matches": [
-        "https://docs.google.com/*"
-      ],
-      "js": [
-        "google-docs-adapter.js"
-      ],
-      "run_at": "document_end"
     }
   ],
   "web_accessible_resources": [
@@ -69,15 +58,9 @@
       "resources": [
         "styles/*.css",
         "assets/audio/*.mp3",
-        "multimodal-handler.js",
-        "pdf-processor.js",
-        "proofreader-handler.js",
         "sidepanel.html",
         "sidepanel.js",
-        "sidepanel.css",
-        "tutorial.html",
-        "tutorial.css",
-        "tutorial.js"
+        "sidepanel.css"
       ],
       "matches": [
         "<all_urls>"
