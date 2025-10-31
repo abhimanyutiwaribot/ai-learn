@@ -697,8 +697,9 @@ def process_document():
         return jsonify({"error": "file not found"}), 404
     
     text = extract_text_from_document(path)
+    file_type = "PDF" if filename.lower().endswith('.pdf') else "Word document"
     if not text:
-        return jsonify({"error": "no text extracted"}), 500
+        return jsonify({"error": f"No text extracted from {file_type}. The file may be corrupt, protected, or contains complex formatting that prevented reading."}), 400
     
     result = {}
     

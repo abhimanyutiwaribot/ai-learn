@@ -3,11 +3,7 @@
   "name": "AI Learn - AI-Powered Smart Assistant",
   "version": "1.0.0",
   "description": "First voice reader that understands what it's reading. AI-powered accessibility for students with learning differences.",
-  "key": "YOUR_EXTENSION_KEY",
-  "trial_tokens": [
-    "YOUR_TRIAL_TOKEN_1",
-    "YOUR_TRIAL_TOKEN_2"
-  ],
+ 
   "permissions": [ 
     "activeTab",
     "scripting",
@@ -122,5 +118,4 @@
     "48": "assets/icons/icon48.png",
     "128": "assets/icons/icon128.png"
   }
-
 }

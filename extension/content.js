@@ -15,7 +15,7 @@ let showReadingLine = true; // Toggle for reading line feature
 let simplifiedVoiceUtterance = null; 
 
 // The backend URL is assumed to be defined here or globally available
-const BACKEND_URL = 'https://ai-learn-2i3f.onrender.com/'; 
+const BACKEND_URL = 'http://localhost:5000'; 
 
 // Define the standard language list for parity
 const standardLanguageOptions = [
@@ -863,7 +863,7 @@ async function callAI(prompt, options = {}) {
 
     // Helper for making the actual fetch call (used for both hybrid and forced cloud)
     const performFetch = async (forceCloud) => {
-        let endpoint = isSimplifyCall ? `https://ai-learn-2i3f.onrender.com//api/hybrid/simplify` : `https://ai-learn-2i3f.onrender.com//api/hybrid/prompt`;
+        let endpoint = isSimplifyCall ? `http://localhost:5000/api/hybrid/simplify` : `http://localhost:5000/api/hybrid/prompt`;
         console.log(`📡 [Cloud] Fetching from backend (Cloud forced: ${forceCloud})...`);
 
         const requestBody = isSimplifyCall ? {
@@ -1162,7 +1162,7 @@ async function processOCRWithBackend(imageDataUrl, targetLanguage) {
     console.log('🌐 Calling backend OCR API...');
     console.log('Image size:', imageDataUrl.length, 'bytes');
     
-    const response = await fetch(`https://ai-learn-2i3f.onrender.com//api/multimodal/ocr-translate`, {
+    const response = await fetch(`http://localhost:5000/api/multimodal/ocr-translate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1302,7 +1302,7 @@ async function captureAndAnalyzeScreenshot() {
 }
 
 async function analyzeImageWithBackend(imageDataUrl, query) {
-    const response = await fetch(`https://ai-learn-2i3f.onrender.com//api/multimodal/analyze-image`, {
+    const response = await fetch(`http://localhost:5000/api/multimodal/analyze-image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
