@@ -1,1 +1,0 @@
-console.log('Proofreader handler loaded');
