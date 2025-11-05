@@ -76,7 +76,7 @@ The backend serves the multimodal and large-content AI requests.
 GOOGLE_AI_API_KEY=your_actual_gemini_api_key_here
 
 
-MONGODB_URI=your_mongo_uri_here
+MONGODB_URI= your_mongo_uri_here
 
 
 FLASK_ENV=development
