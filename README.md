@@ -76,7 +76,7 @@ The backend serves the multimodal and large-content AI requests.
 GOOGLE_AI_API_KEY=your_actual_gemini_api_key_here
 
 
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/chromeai_plus?retryWrites=true&w=majority
+MONGODB_URI= your_mongo_uri_here
 
 
 FLASK_ENV=development
